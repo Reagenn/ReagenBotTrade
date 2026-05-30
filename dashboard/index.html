@@ -8,7 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/styles.css" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9Imx1Y2lmZXJHbG93IiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj48c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjZmYyYTRiIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjOTkwMDExIi8+PC9saW5lYXJHcmFkaWVudD48bGluZWFyR3JhZGllbnQgaWQ9ImdvbGRBY2NlbnQiIHgxPSIwJSIgeTE9IjEwMCUiIHgyPSIxMDAlIiB5Mj0iMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNmZmQ3MDAiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNmZjhjMDAiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgwLCAwKSI+PHBhdGggZD0iTSAxODAsMjIwIEwgMTMwLDMyMCBMIDE4MCwzMDAgTCAxNjAsMzgwIEwgMjIwLDI5MCBMIDE5MCwyOTAgWiIgZmlsbD0idXJsKCNsdWNpZmVyR2xvdykiIG9wYWNpdHk9IjAuOCIvPjxwYXRoIGQ9Ik0gMzIwLDIyMCBMIDM3MCwzMjAgTCAzMjAsMzAwIEwgMzQwLDM4MCBMIDI4MCwyOTAgTCAzMTAsMjkwIFoiIGZpbGw9InVybCgjbHVjaWZlckdsb3cpIiBvcGFjaXR5PSIwLjgiLz48cGF0aCBkPSJNIDIyMCwyODAgTCAyMDAsMTIwIEMgMjEwLDE0MCAyMzAsMTYwIDI0NSwxOTAgTCAyNDUsMjgwIFoiIGZpbGw9InVybCgjbHVjaWZlckdsb3cpIi8+PHBhdGggZD0iTSAyODAsMjgwIEwgMzAwLDEyMCBDIDI5MCwxNDAgMjcwLDE2MCAyNTUsMTkwIEwgMjU1LDI4MCBaIiBmaWxsPSJ1cmwoI2x1Y2lmZXJHbG93KSIvPjxsaW5lIHgxPSIyNTAiIHkxPSI4MCIgeDI9IjI1MCIgeTI9IjQyMCIgc3Ryb2tlPSJ1cmwoI2dvbGRBY2NlbnQpIiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxjaXJjbGUgY3g9IjI1MCIgY3k9IjIyMCIgcj0iOCIgZmlsbD0iI2ZmZmZmZiIvPjwvZz48L3N2Zz4="
+    />
   </head>
   <body>
     <div class="ambient ambient-a"></div>
@@ -17,9 +23,30 @@
     <div class="shell">
       <nav class="top-nav" aria-label="Navigasi utama">
         <div class="nav-brand">
-          <div class="nav-brand-logo">A</div>
+          <!-- SVG -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" class="nav-brand-img" style="width: 32px; height: 32px; margin-right: 12px; filter: drop-shadow(0 0 8px rgba(100, 108, 255, 0.5))">
+            <defs>
+              <linearGradient id="luciferGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ff2a4b" />
+                <stop offset="100%" stop-color="#990011" />
+              </linearGradient>
+              <linearGradient id="goldAccent" x1="0%" y1="100%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="#ffd700" />
+                <stop offset="100%" stop-color="#ff8c00" />
+              </linearGradient>
+            </defs>
+            <g transform="translate(0, 0)">
+              <path d="M 180,220 L 130,320 L 180,300 L 160,380 L 220,290 L 190,290 Z" fill="url(#luciferGlow)" opacity="0.8" />
+              <path d="M 320,220 L 370,320 L 320,300 L 340,380 L 280,290 L 310,290 Z" fill="url(#luciferGlow)" opacity="0.8" />
+              <path d="M 220,280 L 200,120 C 210,140 230,160 245,190 L 245,280 Z" fill="url(#luciferGlow)" />
+              <path d="M 280,280 L 300,120 C 290,140 270,160 255,190 L 255,280 Z" fill="url(#luciferGlow)" />
+              <line x1="250" y1="80" x2="250" y2="420" stroke="url(#goldAccent)" stroke-width="6" stroke-linecap="round" />
+              <circle cx="250" cy="220" r="8" fill="#ffffff" filter="drop-shadow(0px 0px 8px #ff2a4b)" />
+            </g>
+          </svg>
+          <!-- AKHIR KODE SVG -->
           <div class="nav-brand-text">
-            <span class="nav-brand-eyebrow">AgentTrade</span>
+            <span class="nav-brand-eyebrow">Reagen_Agent_Trade</span>
             <strong class="nav-brand-title">Console</strong>
           </div>
         </div>
@@ -70,7 +97,7 @@
       <div id="page-phoenix" class="page-view is-active" role="tabpanel">
         <header class="phoenix-hero">
           <div class="phoenix-hero-main">
-            <h1 class="phoenix-title"><span aria-hidden="true">🔥</span> Phoenix Scanner v4</h1>
+            <h1 class="phoenix-title"><span aria-hidden="true">🔥</span> Phoenix Scanner v1</h1>
             <p class="phoenix-subtitle" id="phoenixSubtitle">5 gejala empiris + conviction intel · H10k floor · Vol exhaustion · MC coiling · Ignition · HolderScan</p>
           </div>
           <div class="phoenix-hero-actions">
@@ -213,7 +240,7 @@
               </div>
             </div>
             <div class="holder-tier-summary" id="holderTierSummary"></div>
-            <div style="display: grid; grid-template-columns: 1fr 300px; gap: 1rem; margin-bottom: 1rem;" class="holder-charts-row">
+            <div style="display: grid; grid-template-columns: 1fr 300px; gap: 1rem; margin-bottom: 1rem" class="holder-charts-row">
               <div class="holder-chart-wrap">
                 <div class="holder-chart-head">
                   <span>Histori holder (per siklus monitor)</span>
@@ -221,9 +248,9 @@
                 </div>
                 <svg id="holderTierChart" class="holder-chart" viewBox="0 0 960 280" preserveAspectRatio="none"></svg>
               </div>
-              <div class="holder-chart-wrap" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                <span style="font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem;">Distribusi Tier Holder</span>
-                <div style="width: 240px; height: 240px; position: relative;">
+              <div class="holder-chart-wrap" style="display: flex; flex-direction: column; align-items: center; justify-content: center">
+                <span style="font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem">Distribusi Tier Holder</span>
+                <div style="width: 240px; height: 240px; position: relative">
                   <canvas id="holderDistributionChart"></canvas>
                 </div>
               </div>
@@ -533,32 +560,32 @@
       </div>
     </div>
 
-    <dialog id="manualBuyDialog" class="phoenix-dialog" style="max-width: 400px;">
+    <dialog id="manualBuyDialog" class="phoenix-dialog" style="max-width: 400px">
       <form method="dialog" id="manualBuyForm">
-        <h2 style="margin-bottom: 0.5rem; font-size: 1.2rem; color: #fff;">🚀 Paper Buy <span id="manualBuySymbol"></span></h2>
-        <p style="color: #94b2cf; font-size: 0.9rem; margin-bottom: 1.5rem;">Pilih ukuran modal (SOL) untuk membuka posisi paper trading.</p>
-        
+        <h2 style="margin-bottom: 0.5rem; font-size: 1.2rem; color: #fff">🚀 Paper Buy <span id="manualBuySymbol"></span></h2>
+        <p style="color: #94b2cf; font-size: 0.9rem; margin-bottom: 1.5rem">Pilih ukuran modal (SOL) untuk membuka posisi paper trading.</p>
+
         <input type="hidden" id="manualBuyAddress" value="" />
         <input type="hidden" id="manualBuyPrice" value="" />
-        
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem;">
-          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem">
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.1)">
             <input type="radio" name="buyAmount" value="0.1" /> 0.1 SOL
           </label>
-          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.1)">
             <input type="radio" name="buyAmount" value="0.3" /> 0.3 SOL
           </label>
-          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.1)">
             <input type="radio" name="buyAmount" value="0.5" checked /> 0.5 SOL
           </label>
-          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255, 255, 255, 0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.1)">
             <input type="radio" name="buyAmount" value="1.0" /> 1.0 SOL
           </label>
         </div>
 
-        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+        <div style="display: flex; gap: 1rem; justify-content: flex-end">
           <button type="button" class="phoenix-ghost-btn" onclick="document.getElementById('manualBuyDialog').close()">Batal</button>
-          <button type="submit" class="phoenix-ghost-btn" style="background: #5fd2c7; color: #060b12; border-color: #5fd2c7; font-weight: 600;">Confirm Buy</button>
+          <button type="submit" class="phoenix-ghost-btn" style="background: #5fd2c7; color: #060b12; border-color: #5fd2c7; font-weight: 600">Confirm Buy</button>
         </div>
       </form>
     </dialog>

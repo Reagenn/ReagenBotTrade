@@ -4,7 +4,9 @@
   "description": "Institutional-style crypto trading agent in Node.js using ccxt, technical indicators, and strict risk management.",
   "main": "src/core/index.js",
   "scripts": {
-    "start": "node src/core/index.js",
+    "start": "node src/core/btc_trade.js",
+    "all": "node src/core/index.js",
+    "trade:btc": "node src/core/btc_trade.js",
     "dashboard": "node dashboard_server.js",
     "monitor:solana": "node src/solana/solana_smart_money_monitor.js",
     "monitor:cex": "node src/cex/cexBot.js",

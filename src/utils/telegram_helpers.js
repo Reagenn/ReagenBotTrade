@@ -86,32 +86,38 @@ const formatCexSpikeAlert = (cexData) => {
     pair,
     price,
     ema200,
-    oiChange, // percentage string or number
-    liquidation, // string
+    oiChange,
+    liquidation,
     entryPullback,
     targetTP,
     targetSL,
-    volumeRatio
+    volumeRatio,
+    rationale,
+    stopLossPct,
+    takeProfitPct
   } = cexData;
 
   const trendStatus = price > ema200 ? 'Bullish 🟢' : 'Bearish 🔴';
-  const trendDetail = price > ema200 ? '(Di atas EMA 200)' : '(Di bawah EMA 200)';
-
+  const trendDetail = price > ema200 ? '(Above EMA 200)' : '(Below EMA 200)';
+  
   return `
 ⚡ <b>[CEX VOLUME SPIKE] ${pair}</b>
 
-📈 <b>Technical Status:</b>
-🚀 <b>Trend:</b> <code>${trendStatus} ${trendDetail}</code>
-📊 <b>Vol Ratio:</b> <code>${volumeRatio?.toFixed(1) || '0.0'}x</code>
-💎 <b>OI/Coinglass:</b> <code>OI ${oiChange >= 0 ? 'Naik' : 'Turun'} ${Math.abs(oiChange || 0).toFixed(1)}%</code>
-💀 <b>Liq Status:</b> <code>${liquidation || 'Stable'}</code>
+📈 <b>Technical Signal:</b>
+🚀 <b>Trend:</b> <code>${trendStatus}</code>
+📊 <b>Vol Surge:</b> <code>${volumeRatio?.toFixed(1) || '0.0'}x Baseline</code>
+💎 <b>EMA 200 (15m):</b> <code>$${ema200?.toFixed(6) || '0.00'}</code>
+🌪️ <b>OI Momentum:</b> <code>${oiChange ? (oiChange >= 0 ? '+' : '-') + Math.abs(oiChange).toFixed(1) + '%' : 'Stable'}</code>
 
-🎯 <b>Action & Target:</b>
+🎯 <b>Trade Plan:</b>
 📥 <b>Entry (Limit):</b> <code>$${entryPullback?.toFixed(6) || price.toFixed(6)}</code>
-💰 <b>Target TP:</b> <code>$${targetTP?.toFixed(6) || '0.00'}</code> (ATR)
-🛡️ <b>Stop Loss:</b> <code>$${targetSL?.toFixed(6) || '0.00'}</code> (1.5% Floor)
+💰 <b>Target TP:</b> <code>$${targetTP?.toFixed(6) || '0.00'}</code> (+${takeProfitPct?.toFixed(1) || '0.0'}%)
+🛡️ <b>Stop Loss:</b> <code>$${targetSL?.toFixed(6) || '0.00'}</code> (-${stopLossPct?.toFixed(1) || '0.0'}%)
 
-<i>Platform: Binance/Bybit</i>
+🧠 <b>Rationale:</b>
+<i>${rationale || 'Volume breakout with trend confirmation and ATR-based volatility targeting.'}</i>
+
+🔗 <a href="https://www.bybit.com/en-US/trade/spot/${pair.replace('/', '')}">Bybit</a> | <a href="https://www.binance.com/en/trade/${pair.replace('/', '_')}">Binance</a>
 `.trim();
 };
 

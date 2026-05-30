@@ -308,6 +308,8 @@ class CexMonitor {
     const entryPrice = round((high + low) / 2, 8);
     console.log(`[ENTRY] Menunggu pullback di harga ${entryPrice} untuk ${symbol} (Midpoint Spike)`);
 
+    const rationale = `Volume spike (${volumeRatio.toFixed(1)}x) confirmed by ${TREND_TIMEFRAME} trend (above EMA${EMA_TREND_PERIOD}). ATR-based volatility target: TP +${metrics.takeProfitPct}% / SL -${metrics.stopLossPct}%.`;
+
     return {
       type: "BUY_SIGNAL",
       symbol,
@@ -317,7 +319,7 @@ class CexMonitor {
       atr,
       atrSlMultiplier: ATR_SL_MULTIPLIER,
       atrTpMultiplier: ATR_TP_MULTIPLIER,
-      signal: metrics,
+      signal: { ...metrics, rationale },
       detectedAt: new Date().toISOString(),
     };
   }

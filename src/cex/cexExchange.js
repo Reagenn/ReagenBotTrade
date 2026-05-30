@@ -5,6 +5,7 @@ const ccxt = require("ccxt");
 const SUPPORTED_EXCHANGES = {
   bybit: ccxt.bybit,
   bitget: ccxt.bitget,
+  binance: ccxt.binance,
 };
 
 /**
@@ -21,7 +22,7 @@ function createPublicExchange(exchangeId = process.env.CEX_EXCHANGE || "bybit") 
 
   const exchangeConfig = {
     enableRateLimit: true,
-    timeout: Number(process.env.CEX_API_TIMEOUT_MS || 12000),
+    timeout: 30000, // Increase timeout to 30s
     options: {
       defaultType: "spot",
     },
@@ -29,6 +30,18 @@ function createPublicExchange(exchangeId = process.env.CEX_EXCHANGE || "bybit") 
 
   if (key === "bybit") {
     exchangeConfig.hostname = "bytick.com";
+  }
+
+  if (key === "binance") {
+    exchangeConfig.urls = {
+      api: {
+        public: "https://api.binance.info/api/v3",
+        private: "https://api.binance.info/api/v3",
+        sapi: "https://api.binance.info/sapi/v1",
+        fapiPublic: "https://fapi.binance.com/fapi/v1",
+        fapiPrivate: "https://fapi.binance.com/fapi/v1",
+      }
+    };
   }
 
   return new ExchangeClass(exchangeConfig);

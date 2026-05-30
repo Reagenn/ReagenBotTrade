@@ -717,13 +717,30 @@ async function handleRequest(req, res) {
 
 const server = http.createServer(handleRequest);
 
-dbManager.initDb().then(() => {
-  runBackgroundPolling();
-  server.listen(PORT, () => {
-    console.log(`[SERVER] Running at http://localhost:${PORT}`);
-    console.log("[SERVER] CEX live price logic is active in handleRequest.");
-  });
-}).catch(err => {
-  console.error("[DB] Init fail:", err.message);
-  process.exit(1);
+// Handle server errors (like port busy)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[SERVER ERROR] Port ${PORT} sudah digunakan oleh proses lain.`);
+    console.error(`[SERVER TIPS] Gunakan port lain via .env (DASHBOARD_PORT) atau matikan proses lama.`);
+  } else {
+    console.error(`[SERVER ERROR]`, err.message);
+  }
 });
+
+function startDashboard() {
+  return dbManager.initDb().then(() => {
+    runBackgroundPolling();
+    server.listen(PORT, () => {
+      console.log(`[SERVER] 🔥 Dashboard siap diakses di http://localhost:${PORT}`);
+    });
+  }).catch(err => {
+    console.error("[DASHBOARD] Init fail:", err.message);
+  });
+}
+
+// Auto-start if run directly
+if (require.main === module) {
+  startDashboard();
+}
+
+module.exports = { startDashboard };

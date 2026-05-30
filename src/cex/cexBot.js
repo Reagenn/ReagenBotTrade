@@ -9,6 +9,7 @@ const { CexSimulator } = require("./cexSimulator");
 const { CexTracker } = require("./cexTracker");
 
 const dbManager = require("../database/dbManager");
+const TelegramNotifier = require("../utils/telegram_notifier");
 
 const config = {
   enabled: process.env.CEX_BOT_ENABLED !== "false",
@@ -19,7 +20,14 @@ const config = {
   takeProfitPct: Number(process.env.CEX_TAKE_PROFIT_PCT || 3),
   stopLossPct: Number(process.env.CEX_STOP_LOSS_PCT || 1.5),
   stateKey: "cex_bot_state",
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
+  telegramChatId: process.env.TELEGRAM_CHAT_ID,
 };
+
+const notifier = new TelegramNotifier({
+  botToken: config.telegramBotToken,
+  chatId: config.telegramChatId
+});
 
 async function readSnapshot() {
   return await dbManager.getState(config.stateKey);
@@ -73,6 +81,24 @@ async function runScanCycle(monitor, simulator) {
     if (trade) {
       opened.push(trade);
       monitor.recordBuyOpened();
+      
+      // Task: Telegram Notification for CEX Trade
+      try {
+        await notifier.sendCexSpikeAlert({
+          pair: signal.symbol,
+          price: signal.signal.close,
+          ema200: signal.signal.ema200_15m,
+          volumeRatio: signal.signal.volumeRatio,
+          entryPullback: signal.entryPrice,
+          targetTP: signal.targetTP,
+          targetSL: signal.targetSL,
+          rationale: signal.signal.rationale,
+          stopLossPct: signal.signal.stopLossPct,
+          takeProfitPct: signal.signal.takeProfitPct
+        });
+      } catch (tgErr) {
+        console.warn(`[cexBot] Telegram alert gagal untuk ${signal.symbol}: ${tgErr.message}`);
+      }
       
       // SQLite position and trade handled by simulator now
     }

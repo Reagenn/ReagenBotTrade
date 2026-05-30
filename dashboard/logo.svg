@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100" height="100">
+  <defs>
+    <linearGradient id="luciferGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff2a4b" />
+      <stop offset="100%" stop-color="#990011" />
+    </linearGradient>
+    <linearGradient id="goldAccent" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffd700" />
+      <stop offset="100%" stop-color="#ff8c00" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(0, 0)">
+    <path d="M 180,220 L 130,320 L 180,300 L 160,380 L 220,290 L 190,290 Z" fill="url(#luciferGlow)" opacity="0.8"/>
+    
+    <path d="M 320,220 L 370,320 L 320,300 L 340,380 L 280,290 L 310,290 Z" fill="url(#luciferGlow)" opacity="0.8"/>
+
+    <path d="M 220,280 L 200,120 C 210,140 230,160 245,190 L 245,280 Z" fill="url(#luciferGlow)"/>
+    <path d="M 280,280 L 300,120 C 290,140 270,160 255,190 L 255,280 Z" fill="url(#luciferGlow)"/>
+    
+    <line x1="250" y1="80" x2="250" y2="420" stroke="url(#goldAccent)" stroke-width="6" stroke-linecap="round"/>
+    
+    <circle cx="250" cy="220" r="8" fill="#ffffff" filter="drop-shadow(0px 0px 8px #ff2a4b)"/>
+  </g>
+</svg>

@@ -104,6 +104,10 @@ const executionEngine = new ExecutionEngine({
   paperAccount,
 });
 
+// Import Other Components
+const dbManager = require("../database/dbManager");
+const { startBot: startSolanaMonitor } = require("../solana/solana_smart_money_monitor");
+
 let latestStreamPrice = null;
 let tradingInterval = null;
 
@@ -305,14 +309,54 @@ async function runFutures() {
   return startRuntime(runtimeMeta);
 }
 
+/**
+ * UNIFIED BOOTSTRAP
+ * Starts Dashboard, Solana Monitor, and CEX Engine
+ */
 async function bootstrap() {
-  const runtimeMode = resolveRuntimeMode();
+  console.log("==================================================");
+  console.log("🚀 AGENT TRADE - UNIFIED STARTUP SEQUENCE");
+  console.log(`📅 Date: ${new Date().toLocaleString()}`);
+  console.log("==================================================");
 
-  if (runtimeMode === "spot") {
-    return runSpotOnly();
+  try {
+    // 1. Database Initialization
+    console.log("[SYSTEM] 📦 Menginisialisasi Database & Migrasi...");
+    await dbManager.initDb();
+    console.log("[SYSTEM] ✅ Database siap.");
+
+    // 2. Start Dashboard Server (Background)
+    console.log("[SYSTEM] 🌐 Menyalakan Dashboard Server...");
+    const { startDashboard } = require("../../dashboard_server"); 
+    startDashboard();
+    // Dashboard logs its own success message when server.listen is ready.
+
+    // 3. Start Solana Smart Money Monitor (Background)
+    console.log("[SYSTEM] 🔍 Menyalakan Mesin Solana Smart Money Monitor...");
+    // We run this in the background (no await startBot because it has its own loop)
+    startSolanaMonitor().catch(err => {
+      console.error("[MONITOR ERROR] Gagal menjalankan monitor Solana:", err.message);
+    });
+    console.log("[SYSTEM] ⚙️ Mesin Scanner & Auto-Trade berjalan di latar belakang.");
+
+    // 4. Start CEX Trading Engine (This will keep the process alive via setInterval)
+    const runtimeMode = resolveRuntimeMode();
+    console.log(`[SYSTEM] 📈 Menyalakan CEX Trading Engine (${runtimeMode.toUpperCase()})...`);
+    
+    if (runtimeMode === "spot") {
+      await runSpotOnly();
+    } else {
+      await runFutures();
+    }
+
+    console.log("==================================================");
+    console.log("🚀 ALL SYSTEMS OPERATIONAL - REAGEN BOT IS LIVE");
+    console.log("==================================================");
+
+  } catch (error) {
+    console.error("[FATAL STARTUP ERROR] Alur inisialisasi gagal:", error.message);
+    process.exit(1);
   }
-
-  return runFutures();
 }
 
 process.on("SIGINT", async () => {
@@ -335,8 +379,22 @@ process.on("SIGTERM", async () => {
   process.exit(0);
 });
 
-bootstrap().catch(async (error) => {
-  logger.fatal({ err: error }, "Trading agent failed during bootstrap.");
-  await dataFetcher.close();
-  process.exit(1);
+// Global rejection handler to prevent silent exits
+process.on("unhandledRejection", (reason) => {
+  console.error("[SYSTEM] ❌ Unhandled Rejection:", reason);
 });
+
+if (require.main === module) {
+  bootstrap().catch((error) => {
+    console.error("[FATAL BOOTSTRAP] Gagal total saat booting:", error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  config,
+  bootstrap,
+  runSpotOnly,
+  runFutures,
+  resolveRuntimeMode
+};
