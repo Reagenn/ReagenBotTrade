@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+node_modules/
+data/
+*.db
+*.log
+*.tmp
+*.bak
+*.backup
+dashboard_payload.json
+recovered_*.js
+dist/
+coverage/
+.DS_Store
+Thumbs.db
+.vscode/

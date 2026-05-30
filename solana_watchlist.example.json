@@ -1,0 +1,16 @@
+{
+  "smartWallets": [
+    {
+      "label": "Example Smart Wallet",
+      "address": "REPLACE_WITH_SOLANA_WALLET_ADDRESS",
+      "smartScore": 78
+    }
+  ],
+  "tokens": [
+    {
+      "symbol": "BONK",
+      "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6nPLFHLmYB1pPB263",
+      "notes": "Example watchlist entry"
+    }
+  ]
+}

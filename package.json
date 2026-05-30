@@ -1,0 +1,42 @@
+{
+  "name": "agent-trade",
+  "version": "1.0.0",
+  "description": "Institutional-style crypto trading agent in Node.js using ccxt, technical indicators, and strict risk management.",
+  "main": "src/core/index.js",
+  "scripts": {
+    "start": "node src/core/index.js",
+    "dashboard": "node dashboard_server.js",
+    "monitor:solana": "node src/solana/solana_smart_money_monitor.js",
+    "monitor:cex": "node src/cex/cexBot.js",
+    "telegram:test": "node tests/telegram_test.js",
+    "wallet:analyze": "node tests/wallet_analyzer_test.js",
+    "simulator:demo": "node tests/trading_simulator_demo.js",
+    "price:fetch": "node tests/price_fetcher_test.js",
+    "token:validate": "node tests/token_validator_test.js",
+    "adapters:test": "node tests/adapters_test.js",
+    "whale:test": "node tests/whale_detector_test.js",
+    "trackers:test": "node tests/advanced_trackers_test.js",
+    "check": "node --check src/core/index.js && node --check src/core/paper_account.js && node --check src/core/execution_engine.js && node --check src/data/data_fetcher.js && node --check src/strategy/strategy_engine.js && node --check src/strategy/risk_manager.js && node --check src/utils/logger.js && node --check src/utils/log_helpers.js && node --check src/utils/telegram_notifier.js && node --check src/solana/tradingSimulator.js && node --check src/solana/priceFetcher.js && node --check src/solana/dexscreenerAdapter.js && node --check src/solana/walletAnalyzer.js && node --check src/solana/birdeyeAdapter.js && node --check src/solana/tokenValidator.js && node --check src/solana/solanaPaperTrading.js && node --check src/solana/solana_smart_money_monitor.js && node --check src/cex/cexExchange.js && node --check src/cex/cexMonitor.js && node --check src/cex/cexSimulator.js && node --check src/cex/cexTracker.js && node --check src/cex/cexBot.js && node --check dashboard_server.js && node --check dashboard/app.js && node --check src/adapters/heliusProfiler.js && node --check src/adapters/rugcheckAdapter.js && node --check src/adapters/alphaScraper.js && node --check src/adapters/solanaTracker.js && node --check tests/whale_detector_test.js && node --check src/advanced_trackers/shyftAdapter.js && node --check src/advanced_trackers/bitqueryAdapter.js && node --check src/advanced_trackers/smartMoneyBuilder.js && node --check tests/advanced_trackers_test.js"
+  },
+  "keywords": [
+    "crypto",
+    "trading",
+    "ccxt",
+    "technical-analysis",
+    "risk-management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@solana/web3.js": "^1.98.4",
+    "axios": "^1.16.1",
+    "bs58": "^6.0.0",
+    "ccxt": "^4.4.83",
+    "dotenv": "^16.4.5",
+    "pino": "^9.4.0",
+    "sqlite3": "^6.0.1",
+    "technicalindicators": "^3.1.0",
+    "ws": "^8.18.0"
+  }
+}

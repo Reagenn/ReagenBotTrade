@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reagen Control Deck</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+
+    <div class="shell">
+      <nav class="top-nav" aria-label="Navigasi utama">
+        <div class="nav-brand">
+          <div class="nav-brand-logo">A</div>
+          <div class="nav-brand-text">
+            <span class="nav-brand-eyebrow">AgentTrade</span>
+            <strong class="nav-brand-title">Console</strong>
+          </div>
+        </div>
+
+        <div class="nav-links" role="tablist">
+          <button type="button" class="nav-link is-active" data-page="phoenix" role="tab" aria-selected="true" aria-controls="page-phoenix">
+            <span class="nav-link-icon">🔥</span>
+            Agent
+          </button>
+          <button type="button" class="nav-link" data-page="monitor" role="tab" aria-selected="false" aria-controls="page-monitor">
+            <span class="nav-link-icon">◎</span>
+            Monitor
+          </button>
+          <button type="button" class="nav-link" data-page="solana-paper" role="tab" aria-selected="false" aria-controls="page-solana-paper">
+            <span class="nav-link-icon">◈</span>
+            SOL Paper
+          </button>
+          <button type="button" class="nav-link" data-page="cex-spike" role="tab" aria-selected="false" aria-controls="page-cex-spike">
+            <span class="nav-link-icon">⚡</span>
+            CEX Spike
+          </button>
+          <button type="button" class="nav-link" data-page="trading" role="tab" aria-selected="false" aria-controls="page-trading">
+            <span class="nav-link-icon">₿</span>
+            BTC Trade
+          </button>
+        </div>
+
+        <div class="nav-actions">
+          <div class="balance-badge" id="balanceBadge">
+            <span class="balance-icon">◈</span>
+            <span id="solanaPaperBalance">100.00 SOL</span>
+          </div>
+          <div class="status-pill">
+            <span class="status-dot"></span>
+            <span id="generatedAt">Live</span>
+          </div>
+          <button id="refreshButton" class="refresh-button" type="button" title="Refresh Dashboard">
+            <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 4v6h-6"></path>
+              <path d="M1 20v-6h6"></path>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Phoenix Scanner v4 -->
+      <div id="page-phoenix" class="page-view is-active" role="tabpanel">
+        <header class="phoenix-hero">
+          <div class="phoenix-hero-main">
+            <h1 class="phoenix-title"><span aria-hidden="true">🔥</span> Phoenix Scanner v4</h1>
+            <p class="phoenix-subtitle" id="phoenixSubtitle">5 gejala empiris + conviction intel · H10k floor · Vol exhaustion · MC coiling · Ignition · HolderScan</p>
+          </div>
+          <div class="phoenix-hero-actions">
+            <button type="button" class="phoenix-ghost-btn" id="phoenixHowBtn">How it works</button>
+            <button type="button" class="phoenix-ghost-btn" id="phoenixRefreshBtn">Refresh</button>
+          </div>
+        </header>
+
+        <div class="phoenix-summary" id="phoenixSummary"></div>
+
+        <div class="phoenix-tabs" id="phoenixTabs" role="tablist"></div>
+
+        <div class="phoenix-grid" id="phoenixGrid"></div>
+
+        <dialog id="phoenixHowDialog" class="phoenix-dialog">
+          <form method="dialog">
+            <h2>Agent Scanner v4</h2>
+            <p>Skor Agent menggabungkan momentum monitor, tier holder ≥$10k, smart money & whale dari Birdeye HolderScan, serta filter likuiditas/rug. Tab FIRE / CANDIDATE / PRE-IGN / CAPITUL memfilter kartu berdasarkan ambang skor.</p>
+            <p class="phoenix-dialog-note">Data diperbarui setiap siklus <code>npm run monitor:solana</code>. Proses monitor harus tetap berjalan di terminal.</p>
+            <button type="submit" class="phoenix-ghost-btn">Tutup</button>
+          </form>
+        </dialog>
+      </div>
+
+      <!-- Solana Monitor -->
+      <div id="page-monitor" class="page-view" role="tabpanel" hidden>
+        <header class="page-hero page-hero-monitor">
+          <div>
+            <p class="eyebrow">Layer 4 · Smart Money</p>
+            <h1>Solana Monitor</h1>
+            <p class="hero-copy">Pantau briefing harian, whale buying, smart money 24 jam, discovery listing, dan kesehatan provider Solana dalam satu ruang kerja khusus.</p>
+          </div>
+          <div class="page-hero-badge">
+            <span class="page-badge page-badge-monitor">Live On-Chain Intel</span>
+          </div>
+        </header>
+
+        <main class="grid">
+          <section class="panel span-12 briefing-shell">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Morning Briefing</p>
+                <h2>Daily Solana Setup Brief</h2>
+              </div>
+              <div id="briefingTime" class="pill-inline">Waiting for briefing</div>
+            </div>
+            <div class="briefing-chip-row" id="briefingChips"></div>
+            <div class="briefing-tiers">
+              <section class="briefing-tier briefing-tier-must">
+                <header class="briefing-tier-head">
+                  <span class="briefing-tier-icon" aria-hidden="true">⭐</span>
+                  <div class="briefing-tier-title">
+                    <h3>Wajib Dibeli Sekarang</h3>
+                    <p>Konfirmasi tertinggi + akumulasi masih fresh</p>
+                  </div>
+                  <span class="briefing-tier-count" id="mustBuyCount">0</span>
+                </header>
+                <div id="briefingMustBuy" class="briefing-list"></div>
+              </section>
+              <section class="briefing-tier briefing-tier-fire">
+                <header class="briefing-tier-head">
+                  <span class="briefing-tier-icon" aria-hidden="true">🔥</span>
+                  <div class="briefing-tier-title">
+                    <h3>Tier 1A — Phoenix FIRE</h3>
+                    <p>Konviksi tertinggi · smart money + momentum</p>
+                  </div>
+                  <span class="briefing-tier-count" id="fireCount">0</span>
+                </header>
+                <div id="briefingFire" class="briefing-list"></div>
+              </section>
+              <section class="briefing-tier briefing-tier-alpha">
+                <header class="briefing-tier-head">
+                  <span class="briefing-tier-icon" aria-hidden="true">⚡</span>
+                  <div class="briefing-tier-title">
+                    <h3>Tier 1B — Alpha Early</h3>
+                    <p>Entry awal · score & likuiditas kuat</p>
+                  </div>
+                  <span class="briefing-tier-count" id="alphaCount">0</span>
+                </header>
+                <div id="briefingAlpha" class="briefing-list"></div>
+              </section>
+              <section class="briefing-tier briefing-tier-watch">
+                <header class="briefing-tier-head">
+                  <span class="briefing-tier-icon" aria-hidden="true">👁</span>
+                  <div class="briefing-tier-title">
+                    <h3>Watchlist — Monitor</h3>
+                    <p>Pantau · filter belum lengkap</p>
+                  </div>
+                  <span class="briefing-tier-count" id="watchCount">0</span>
+                </header>
+                <div id="briefingWatchlist" class="briefing-list"></div>
+              </section>
+            </div>
+          </section>
+
+          <section class="panel span-12 timeframe-monitor-panel">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Monitor List</p>
+                <h2>Daftar Koin Dianalisis · 1H / 4H / 1D</h2>
+                <p class="panel-subcopy">Koin tetap tampil di kolom lama setelah naik timeframe (1H→4H→1D). Batas monitor: atur <code>SOLANA_TOKEN_UNIVERSE_LIMIT</code> di .env. Win rate = rata-rata smart/whale wallet.</p>
+              </div>
+              <div id="timeframeFilterStats" class="pill-inline">Menunggu data</div>
+            </div>
+            <div class="timeframe-chip-row" id="timeframeChips"></div>
+            <div class="timeframe-columns">
+              <article class="timeframe-col">
+                <header class="timeframe-col-head">
+                  <h3>1 Hour</h3>
+                  <span id="timeframe1hCount" class="timeframe-col-count">0</span>
+                </header>
+                <div id="timeframe1hList" class="timeframe-list"></div>
+              </article>
+              <article class="timeframe-col">
+                <header class="timeframe-col-head">
+                  <h3>4 Hour</h3>
+                  <span id="timeframe4hCount" class="timeframe-col-count">0</span>
+                </header>
+                <div id="timeframe4hList" class="timeframe-list"></div>
+              </article>
+              <article class="timeframe-col">
+                <header class="timeframe-col-head">
+                  <h3>1 Day</h3>
+                  <span id="timeframe1dCount" class="timeframe-col-count">0</span>
+                </header>
+                <div id="timeframe1dList" class="timeframe-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel span-12 holder-panel">
+            <div class="panel-head holder-panel-head">
+              <div>
+                <p class="section-kicker">Token Details</p>
+                <h2>Holder Tiers · Smart Money & Whale</h2>
+              </div>
+              <div class="holder-panel-controls">
+                <label class="holder-select-label" for="tokenDetailSelect">Token</label>
+                <select id="tokenDetailSelect" class="holder-select"></select>
+              </div>
+            </div>
+            <div class="holder-tier-summary" id="holderTierSummary"></div>
+            <div style="display: grid; grid-template-columns: 1fr 300px; gap: 1rem; margin-bottom: 1rem;" class="holder-charts-row">
+              <div class="holder-chart-wrap">
+                <div class="holder-chart-head">
+                  <span>Histori holder (per siklus monitor)</span>
+                  <div class="holder-chart-legend" id="holderChartLegend"></div>
+                </div>
+                <svg id="holderTierChart" class="holder-chart" viewBox="0 0 960 280" preserveAspectRatio="none"></svg>
+              </div>
+              <div class="holder-chart-wrap" style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <span style="font-size: 0.78rem; color: var(--muted); margin-bottom: 0.5rem;">Distribusi Tier Holder</span>
+                <div style="width: 240px; height: 240px; position: relative;">
+                  <canvas id="holderDistributionChart"></canvas>
+                </div>
+              </div>
+            </div>
+            <div class="holder-wallet-grid">
+              <article class="holder-wallet-col">
+                <h3>Smart Money di Token</h3>
+                <div id="holderSmartList" class="holder-wallet-list"></div>
+              </article>
+              <article class="holder-wallet-col">
+                <h3>Whale Holders (≥ threshold)</h3>
+                <div id="holderWhaleList" class="holder-wallet-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel span-8">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Intelligence</p>
+                <h2>Whale Buying vs Smart Money</h2>
+              </div>
+            </div>
+            <div class="insight-grid insight-grid-stacked">
+              <article class="insight-card insight-card-whale">
+                <div class="insight-head">
+                  <span class="insight-icon">↻</span>
+                  <h3>Whale Buying</h3>
+                </div>
+                <p class="insight-copy">Wallet dengan net-buy besar dalam 24 jam — ukuran arus modal institusi/whale.</p>
+                <div class="insight-points">
+                  <div id="whaleGuideText">Menunggu data whale 24 jam.</div>
+                </div>
+              </article>
+              <article class="insight-card insight-card-smart">
+                <div class="insight-head">
+                  <span class="insight-icon">◆</span>
+                  <h3>Smart Money</h3>
+                </div>
+                <p class="insight-copy">Wallet allowlist berkualitas yang sedang akumulasi dalam 24 jam.</p>
+                <div class="insight-points">
+                  <div id="smartGuideText">Menunggu data smart money 24 jam.</div>
+                </div>
+              </article>
+            </div>
+            <div class="rule-banner" id="smartMoneyRule">Rule of thumb: saat whale buying dan smart money sama-sama aktif pada token yang sama, konviksi sinyal naik.</div>
+          </section>
+
+          <section class="panel span-4">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Status</p>
+                <h2>Monitor Runtime</h2>
+              </div>
+            </div>
+            <div id="monitorRuntime" class="stack"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Actionable</p>
+                <h2>Wajib Dibeli Sekarang</h2>
+              </div>
+            </div>
+            <div id="solanaMustBuy" class="signal-table"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Pipeline</p>
+                <h2>Provider Health</h2>
+              </div>
+            </div>
+            <div id="providerStatus" class="metric-grid provider-grid"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Signals</p>
+                <h2>Smart Money Buying - 24h</h2>
+              </div>
+            </div>
+            <div id="solanaSmartMoney" class="signal-table"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Signals</p>
+                <h2>Whale Buying - 24h</h2>
+              </div>
+            </div>
+            <div id="solanaWhaleBuying" class="signal-table"></div>
+          </section>
+        </main>
+      </div>
+
+      <!-- Solana Paper Trading -->
+      <div id="page-solana-paper" class="page-view" role="tabpanel" hidden>
+        <header class="page-hero page-hero-paper">
+          <div>
+            <p class="eyebrow">Paper Trading · Solana SPL</p>
+            <h1>Solana Paper Trading</h1>
+            <p class="hero-copy">Simulasi buy otomatis dari sinyal smart money / Phoenix monitor. Take profit & stop loss virtual — track win rate strategi tanpa modal nyata.</p>
+          </div>
+          <div class="page-hero-badge">
+            <span class="page-badge page-badge-paper">Virtual SOL</span>
+          </div>
+        </header>
+
+        <main class="grid">
+          <section class="panel span-12 paper-summary-panel">
+            <div class="paper-summary-grid" id="paperSummaryGrid"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Open</p>
+                <h2>Posisi Aktif</h2>
+                <p class="panel-subcopy">TP/SL dicek tiap siklus monitor · harga dari DexScreener</p>
+              </div>
+              <span id="paperOpenCount" class="pill-inline">0</span>
+            </div>
+            <div id="paperOpenList" class="paper-trade-list"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Config</p>
+                <h2>Aturan Simulasi</h2>
+              </div>
+            </div>
+            <div id="paperConfigPanel" class="stack"></div>
+            <div id="paperCycleEvents" class="paper-events"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">History</p>
+                <h2>Riwayat Trade (TP / SL)</h2>
+              </div>
+              <span id="paperHistoryCount" class="pill-inline">0</span>
+            </div>
+            <div id="paperHistoryList" class="paper-history-table"></div>
+          </section>
+        </main>
+      </div>
+
+      <!-- CEX Volume Spike Paper -->
+      <div id="page-cex-spike" class="page-view" role="tabpanel" hidden>
+        <header class="page-hero page-hero-cex">
+          <div>
+            <p class="eyebrow">CEX Paper · Volume Spike Breakout</p>
+            <h1>CEX Volume Spike</h1>
+            <p class="hero-copy">Monitor Bybit/Bitget: volume spike + EMA200 (15m) + filter wick + TP/SL dinamis ATR(14).</p>
+          </div>
+          <div class="page-hero-badge">
+            <span id="cexExchangeBadge" class="page-badge page-badge-cex">Bybit</span>
+          </div>
+        </header>
+
+        <main class="grid">
+          <section class="panel span-12 paper-summary-panel">
+            <div class="paper-summary-grid" id="cexSummaryGrid"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Open</p>
+                <h2>Posisi Aktif</h2>
+                <p class="panel-subcopy">TP/SL dicek polling ticker cepat</p>
+              </div>
+              <span id="cexOpenCount" class="pill-inline">0</span>
+            </div>
+            <div id="cexOpenList" class="paper-trade-list"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Scan</p>
+                <h2>Sinyal Terakhir</h2>
+              </div>
+            </div>
+            <div id="cexSignalsList" class="paper-events"></div>
+            <div id="cexScanMeta" class="stack trade-meta"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">History</p>
+                <h2>Riwayat Trade (TP / SL)</h2>
+              </div>
+              <span id="cexHistoryCount" class="pill-inline">0</span>
+            </div>
+            <div id="cexHistoryList" class="paper-history-table"></div>
+          </section>
+        </main>
+      </div>
+
+      <!-- BTC Futures Trading -->
+      <div id="page-trading" class="page-view" role="tabpanel" hidden>
+        <header class="page-hero page-hero-trading">
+          <div>
+            <p class="eyebrow">Paper Trading · BTC/USDT</p>
+            <h1>BTC Futures Trading</h1>
+            <p class="hero-copy">Cockpit khusus paper trading: harga BTC live, ekuitas spot & futures, posisi terbuka, riwayat trade, dan log engine dalam satu tampilan terfokus.</p>
+          </div>
+          <div class="page-hero-badge">
+            <span class="page-badge page-badge-trading">Paper Mode</span>
+          </div>
+        </header>
+
+        <main class="grid">
+          <section class="panel span-8">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Overview</p>
+                <h2>Capital Snapshot</h2>
+              </div>
+            </div>
+            <div class="metric-grid" id="topMetrics"></div>
+          </section>
+
+          <section class="panel span-4">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Health</p>
+                <h2>Runtime State</h2>
+              </div>
+            </div>
+            <div id="runtimeSummary" class="stack"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Spot</p>
+                <h2>Paper Spot Account</h2>
+              </div>
+            </div>
+            <div class="action-row">
+              <button id="closeSpotButton" class="action-button action-button-spot" type="button" disabled>Close Spot Position</button>
+              <span id="spotActionStatus" class="action-status">No open spot position.</span>
+            </div>
+            <div id="spotSummary" class="stack"></div>
+            <div class="chart-wrap">
+              <svg id="spotCurve" class="curve" viewBox="0 0 640 220" preserveAspectRatio="none"></svg>
+            </div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Futures</p>
+                <h2>Paper Futures Account</h2>
+              </div>
+            </div>
+            <div class="action-row">
+              <button id="closeFuturesButton" class="action-button action-button-futures" type="button" disabled>Close Futures Position</button>
+              <span id="futuresActionStatus" class="action-status">No open futures position.</span>
+            </div>
+            <div id="futuresSummary" class="stack"></div>
+            <div class="chart-wrap">
+              <svg id="futuresCurve" class="curve" viewBox="0 0 640 220" preserveAspectRatio="none"></svg>
+            </div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Trades</p>
+                <h2>Recent Spot Activity</h2>
+              </div>
+            </div>
+            <div id="spotTrades" class="trade-list"></div>
+          </section>
+
+          <section class="panel span-6">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Trades</p>
+                <h2>Recent Futures Activity</h2>
+              </div>
+            </div>
+            <div id="futuresTrades" class="trade-list"></div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Audit</p>
+                <h2>Recent Engine Logs</h2>
+              </div>
+            </div>
+            <div id="recentLogs" class="log-list"></div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <dialog id="manualBuyDialog" class="phoenix-dialog" style="max-width: 400px;">
+      <form method="dialog" id="manualBuyForm">
+        <h2 style="margin-bottom: 0.5rem; font-size: 1.2rem; color: #fff;">🚀 Paper Buy <span id="manualBuySymbol"></span></h2>
+        <p style="color: #94b2cf; font-size: 0.9rem; margin-bottom: 1.5rem;">Pilih ukuran modal (SOL) untuk membuka posisi paper trading.</p>
+        
+        <input type="hidden" id="manualBuyAddress" value="" />
+        <input type="hidden" id="manualBuyPrice" value="" />
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.5rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+            <input type="radio" name="buyAmount" value="0.1" /> 0.1 SOL
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+            <input type="radio" name="buyAmount" value="0.3" /> 0.3 SOL
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+            <input type="radio" name="buyAmount" value="0.5" checked /> 0.5 SOL
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);">
+            <input type="radio" name="buyAmount" value="1.0" /> 1.0 SOL
+          </label>
+        </div>
+
+        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+          <button type="button" class="phoenix-ghost-btn" onclick="document.getElementById('manualBuyDialog').close()">Batal</button>
+          <button type="submit" class="phoenix-ghost-btn" style="background: #5fd2c7; color: #060b12; border-color: #5fd2c7; font-weight: 600;">Confirm Buy</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="tokenDetailsDialog" class="token-details-dialog">
+      <form method="dialog" class="token-details-form">
+        <header class="token-details-header">
+          <div>
+            <p class="token-details-eyebrow" id="tokenDetailsEyebrow">Token Details</p>
+            <h2 class="token-details-title" id="tokenDetailsTitle">—</h2>
+            <p class="token-details-meta" id="tokenDetailsMeta">—</p>
+          </div>
+          <button type="submit" class="token-details-close" aria-label="Tutup">✕</button>
+        </header>
+
+        <div class="token-details-summary" id="tokenDetailsSummary"></div>
+
+        <div class="token-details-toolbar">
+          <div class="token-details-tabs" role="tablist" aria-label="Interval chart">
+            <button type="button" class="token-details-tab is-active" data-td-interval="1h">1 Hour Holder Tiers</button>
+            <button type="button" class="token-details-tab" data-td-interval="4h">4 Hour Holder Tiers</button>
+          </div>
+          <div class="token-details-tabs" role="tablist" aria-label="Rentang waktu">
+            <button type="button" class="token-details-tab is-active" data-td-range="MAX">MAX</button>
+            <button type="button" class="token-details-tab" data-td-range="30D">30D</button>
+            <button type="button" class="token-details-tab" data-td-range="7D">7D</button>
+          </div>
+        </div>
+
+        <div class="token-details-series" id="tokenDetailsSeries"></div>
+        <div class="token-details-changes" id="tokenDetailsChanges"></div>
+
+        <div class="token-details-chart-wrap">
+          <svg id="tokenDetailsChart" class="token-details-chart" viewBox="0 0 1100 320" preserveAspectRatio="none"></svg>
+          <div class="token-details-tooltip" id="tokenDetailsTooltip" hidden></div>
+        </div>
+
+        <div class="token-details-wallets">
+          <article>
+            <h3>Smart Money Holders</h3>
+            <div id="tokenDetailsSmartList" class="holder-wallet-list"></div>
+          </article>
+          <article>
+            <h3>Whale Holders</h3>
+            <div id="tokenDetailsWhaleList" class="holder-wallet-list"></div>
+          </article>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
