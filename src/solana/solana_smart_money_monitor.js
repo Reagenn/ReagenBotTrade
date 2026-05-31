@@ -1,5 +1,4 @@
 require("dotenv").config();
-
 const fs = require("fs");
 const path = require("path");
 const logger = require("../utils/logger");
@@ -19,6 +18,7 @@ const { runSolanaPaperTradingCycle } = require("./solanaPaperTrading");
 const alphaScraper = require("../adapters/alphaScraper");
 const heliusProfiler = require("../adapters/heliusProfiler");
 const rugcheckAdapter = require("../adapters/rugcheckAdapter");
+const gmgnAdapter = require("../adapters/gmgnAdapter");
 const solanaTracker = require("../adapters/solanaTracker"); // Whale Detector
 const bitqueryAdapter = require("../advanced_trackers/bitqueryAdapter");
 const smartMoneyBuilder = require("../advanced_trackers/smartMoneyBuilder");
@@ -96,18 +96,21 @@ const notifier = new TelegramNotifier({
 async function persistDiscoveryCandidates(candidates) {
   for (const c of candidates) {
     try {
+      const now = new Date();
+      const accumInfo = `Akumulasi ${now.toLocaleDateString('id-ID')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
       await dbManager.addToMonitor({
         token_address: c.token.mint,
         symbol: c.token.symbol,
-        timeframe: 'DISCOVERY',
+        status: 'DISCOVERY', // Ganti timeframe jadi status
         discovery_tier: c.labels?.tier || 'NEW',
         score: c.score || 0,
-        status: c.status || 'WATCHING',
+        strategy_status: c.status || 'WATCHING', // Ganti status jadi strategy_status
+        timeframe: accumInfo, // Tambah timeframe untuk info akumulasi
         pair_data: c.pair,
         holders_data: c.holderAnalytics,
         smart_money_data: c.smartWalletSignal,
         whale_data: c.whaleSignal,
-        // Standardized fields for easy UI mapping
         rug_status: c.rug_status,
         liq_status: c.liq_status,
         smart_money_count: c.smartWalletSignal?.walletBuyCount || 0,
@@ -138,15 +141,23 @@ async function runMonitorCycle() {
     const heliusQuota = await dbManager.checkApiQuota('helius');
     console.log(`[QUOTA] Birdeye: ${birdeyeQuota ? 'OK' : 'LIMIT'}, Helius: ${heliusQuota ? 'OK' : 'LIMIT'}`);
 
-    // 1. Update Smart Money Watchlist (Periodic)
-    let birdeyeWatchlist = null;
-    if (cycleCount % config.watchlistEveryNCycles === 1) {
-      if (birdeyeQuota) {
-        console.log("[SCANNER] Memperbarui watchlist smart money dari Birdeye...");
-        birdeyeWatchlist = await updateSmartMoneyWatchlist();
-      } else {
-        console.warn("[SCANNER] Skip update watchlist (Birdeye quota limit)");
-      }
+    // 1. Fetch Candidates from GMGN Smart Money Radar
+    console.log("[🎯 RADAR] Memindai sinyal beli beruntun dari Smart Money via GMGN...");
+    const gmgnBuySignals = await gmgnAdapter.getSmartMoneyBuySignals();
+    
+    // Task: Cache Smart Money Wallets for Holder Profiler sync
+    const cachedSmartMoneyWallets = gmgnBuySignals.map(s => s.address || s.wallet_address).filter(Boolean);
+
+    const gmgnCandidates = gmgnBuySignals.map(s => ({
+      tokenAddress: s.token_address || s.mint || s.address,
+      symbol: s.symbol || s.base_token_symbol || '?',
+      name: s.name || s.base_token_name || '?',
+      description: "🎯 Captured via GMGN Smart Money Buy Signal",
+      isGmgVip: true
+    })).filter(c => c.tokenAddress);
+
+    if (gmgnCandidates.length > 0) {
+      console.log(`[GMGN INJECTION] Memasukkan ${gmgnCandidates.length} koin VIP dari sinyal Smart Money ke jalur antrian.`);
     }
 
     // 2. Fetch Candidates from DexScreener
@@ -158,21 +169,11 @@ async function runMonitorCycle() {
 
     console.log(`[DEXSCREENER API] Berhasil menarik ${boosts.length + profiles.length} pair koin terbaru (${boosts.length} boosts, ${profiles.length} profiles).`);
 
-    // Task: VIP Injection from Birdeye Smart Money
-    const birdeyeCandidates = (birdeyeWatchlist && birdeyeWatchlist.tokens) ? birdeyeWatchlist.tokens.map(t => ({
-      tokenAddress: t.mint,
-      symbol: t.symbol,
-      name: t.name || t.symbol,
-      description: "🔥 Captured via Birdeye Smart Money",
-      isBirdeyeVip: true
-    })) : [];
-
-    if (birdeyeCandidates.length > 0) {
-      console.log(`[BIRDEYE INJECTION] Memasukkan ${birdeyeCandidates.length} koin VIP ke jalur antrian.`);
-    }
-
+    // We no longer have 'birdeyeWatchlist' tokens directly, we rely on DexScreener and Whale Spy for new tokens.
+    // If you want to fetch tokens held by the GMGN smart wallets, that is handled by the Whale Discovery Spy.
+    
     // Map to candidates format
-    const rawCandidates = [...birdeyeCandidates, ...boosts, ...profiles];
+    const rawCandidates = [...gmgnCandidates, ...boosts, ...profiles];
     const uniqueMints = new Set();
     const candidates = [];
 
@@ -203,6 +204,7 @@ async function runMonitorCycle() {
       // Check Blacklist
       if (await dbManager.isBlacklisted(mint)) {
         preFilterStats.blacklisted++;
+        console.log(`[🛡️ BLACKLIST] Mengabaikan token ${symbol || mint.slice(0, 6)} karena pernah menyentuh SL atau dilarang.`);
         continue;
       }
 
@@ -276,8 +278,64 @@ async function runMonitorCycle() {
           continue;
         }
 
+        // --- NEW: Token Security & Dev Info Investigation via GMGN ---
+        console.log(`[🛡️ SECURITY CHECK] Memindai kontrak pintar token ${candidate.token.symbol}...`);
+        const security = await gmgnAdapter.getTokenSecurity(mint);
+        
+        if (!security) {
+           funnelStats.rugRisk++;
+           console.log(`[🚨 ANTI-RUG] Membatalkan pembelian ${candidate.token.symbol}. Gagal mendapatkan data Security (Safety First).`);
+           continue; 
+        }
+
+        const secData = security.data || security; 
+
+        if (secData.is_honeypot === true) {
+           funnelStats.rugRisk++;
+           console.log(`[🚨 ANTI-RUG] Membatalkan pembelian ${candidate.token.symbol}. Terdeteksi HONEYPOT!`);
+           await dbManager.blacklistToken(mint, candidate.token.symbol, `Anti-Rug: Honeypot`);
+           continue;
+        }
+
+        const buyTax = Number(secData.buy_tax || 0);
+        const sellTax = Number(secData.sell_tax || 0);
+        if (buyTax > 0.1 || sellTax > 0.1 || buyTax > 10 || sellTax > 10) { 
+           funnelStats.rugRisk++;
+           console.log(`[🚨 ANTI-RUG] Membatalkan pembelian ${candidate.token.symbol}. Tax terlalu tinggi (Buy: ${buyTax}, Sell: ${sellTax}).`);
+           await dbManager.blacklistToken(mint, candidate.token.symbol, `Anti-Rug: High Tax`);
+           continue;
+        }
+
+        const top10 = Number(secData.top_10_holder_rate || secData.top_10_holders || 0);
+        if (top10 > 0.4 || top10 > 40) {
+           funnelStats.rugRisk++;
+           console.log(`[🚨 ANTI-RUG] Membatalkan pembelian ${candidate.token.symbol}. Top 10 Holders menguasai > 40% suplai.`);
+           await dbManager.blacklistToken(mint, candidate.token.symbol, `Anti-Rug: Top 10 > 40%`);
+           continue;
+        }
+
+        console.log(`[🧐 DEV ANALYSIS] Memata-matai dompet developer ${candidate.token.symbol}...`);
+        const devInfo = await gmgnAdapter.getDevInfo(mint);
+        
+        if (!devInfo) {
+           funnelStats.rugRisk++;
+           console.log(`[🚨 ANTI-RUG] Membatalkan pembelian ${candidate.token.symbol}. Gagal mendapatkan data Dev Info (Safety First).`);
+           continue;
+        }
+
+        const devData = devInfo.data || devInfo;
+        const devHolding = Number(devData.creator_token_status || devData.dev_holding_rate || devData.holding_rate || devData.creator_percentage || 0);
+        
+        if (devHolding > 0.1 || devHolding > 10) {
+           funnelStats.rugRisk++;
+           console.log(`[🚨 RUG ALERT] Developer memegang terlalu banyak token! (${devHolding}) Membatalkan ${candidate.token.symbol}.`);
+           await dbManager.blacklistToken(mint, candidate.token.symbol, `Anti-Rug: Dev Holding > 10%`);
+           continue;
+        }
+
         // c. Holder Analytics (Helius/SolanaTracker)
-        const holderAnalytics = await solanaTracker.getTokenWhales(mint, bestPair.priceUsd);
+        // Task: Sync Smart Money cache to Profiler
+        const holderAnalytics = await solanaTracker.getTokenWhales(mint, bestPair.priceUsd, cachedSmartMoneyWallets);
         candidate.holderAnalytics = holderAnalytics;
 
         // d. Large Swaps via Birdeye
@@ -291,11 +349,11 @@ async function runMonitorCycle() {
         }
 
         // e. Automated Smart Money scouting (top holders)
-        if (cycleCount % 2 === 0 && birdeyeQuota) {
-           const topHolders = await smartMoneyBuilder.scoutTopHolders(mint);
-           if (topHolders.length > 0) {
-             const profiles = await smartMoneyBuilder.profileWallets(topHolders.slice(0, 5));
-             const smartWallets = profiles.filter(p => p.winRate >= 70);
+        if (cycleCount % 2 === 0) {
+           // Task: Use GMGN for deep top trader profiling
+           const topTraders = await gmgnAdapter.getSmartMoneyHolders(mint);
+           if (topTraders.length > 0) {
+             const smartWallets = topTraders.filter(p => p.winrate >= 70 && p.total_pnl > 1000 && p.trade_count > 10);
              candidate.smartWalletSignal = {
                walletBuyCount: smartWallets.length,
                wallets: smartWallets
@@ -303,7 +361,7 @@ async function runMonitorCycle() {
              
              // Save new smart money wallets to global database
              for (const sw of smartWallets) {
-               await smartMoneyBuilder.saveSmartMoney(sw.address, sw.winRate);
+               await dbManager.addOrUpdateSmartWallet(sw);
              }
            }
         }
@@ -345,19 +403,41 @@ async function runMonitorCycle() {
           const huntMint = mint;
           setTimeout(async () => {
              try {
-               if (await dbManager.checkApiQuota('birdeye')) {
-                 await huntSmartMoney(huntMint);
-               }
+               // Update to use gmgnAdapter since birdeye is no longer used for hunting
+               await gmgnAdapter.getSmartMoneyHolders(huntMint);
              } catch (huntErr) {
                console.error(`[SMART-HUNTER ERROR] Gagal hunting untuk ${huntMint}:`, huntErr.message);
              }
           }, 5000 + (enrichedCandidates.length * 2000));
+          
+          // --- NEW: COMBAT EXECUTION (LIVE vs PAPER) ---
+          // JANGAN LUPA: Tambahkan variabel TRADE_MODE=PAPER dan SOLANA_BUY_AMOUNT_SOL=0.01 di file .env Anda.
+          const tradeMode = (process.env.TRADE_MODE || 'PAPER').toUpperCase();
+          const buyAmount = Number(process.env.SOLANA_BUY_AMOUNT_SOL || 0.05);
+
+          if (tradeMode === 'LIVE') {
+            console.log(`[⚡ LIVE TRADE EXECUTION] Menyiapkan senjata Anti-MEV untuk membeli ${candidate.token.symbol}...`);
+            const txHash = await gmgnAdapter.executeMarketBuyAntiMEV(mint, buyAmount);
+            if (txHash) {
+              // Successfully executed live trade
+              candidate.liveTradeTx = txHash;
+            }
+          } else {
+            console.log(`[📝 PAPER TRADE] Mode simulasi aktif. Koin ${candidate.token.symbol} akan diteruskan ke mesin Paper Trading...`);
+          }
         }
 
         // Task: Standardize Rug and Liq status for persistence
         candidate.rug_status = audit.status;
         candidate.liq_status = liquidityUsd >= 50000 ? 'SAFE' : liquidityUsd >= 15000 ? 'MEDIUM' : 'WEAK';
         candidate.audit_report = audit;
+
+        // Task: Reject WEAK liquidity coins immediately
+        if (candidate.liq_status === 'WEAK') {
+          funnelStats.lowQuality++;
+          console.log(`[SCANNER] REJECT ${candidate.token.symbol} (Liquidity WEAK): $${liquidityUsd.toFixed(0)}`);
+          continue;
+        }
 
         // Log Konfirmasi
         console.log(`[SCANNER] ✅ Lolos Filter: ${candidate.token.symbol} | Rug: ${candidate.rug_status} | Liq: ${candidate.liq_status} | Score: ${candidate.score}`);
@@ -379,18 +459,19 @@ async function runMonitorCycle() {
         await dbManager.addMonitorCoin({
           token_address: mint,
           symbol: candidate.token.symbol,
-          timeframe: isVip ? 'BIRDEYE_VIP' : 'DISCOVERY',
+          status: isVip ? 'BIRDEYE_VIP' : 'DISCOVERY', // Ganti timeframe jadi status
           discovery_tier: candidate.labels?.tier || 'NEW',
           score: candidate.score || 0,
-          status: candidate.status || 'WATCHING',
+          strategy_status: candidate.status || 'WATCHING', // Ganti status jadi strategy_status
           pair_data: candidate.pair,
           holders_data: candidate.holderAnalytics,
           smart_money_data: candidate.smartWalletSignal,
           whale_data: candidate.whaleSignal,
           rug_status: candidate.rug_status,
           liq_status: candidate.liq_status,
-          smart_money_count: candidate.smartWalletSignal?.walletBuyCount || 0,
-          whale_count: candidate.whaleSignal?.whaleWalletCount || 0
+          smart_money_count: candidate.holderAnalytics?.smartMoneyCount || 0,
+          whale_count: candidate.holderAnalytics?.whaleCount || 0,
+          insider_count: candidate.holderAnalytics?.insiderCount || 0
         });
 
         // Task: Telegram Notification for high tier finds

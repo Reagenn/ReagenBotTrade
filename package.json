@@ -11,6 +11,8 @@
     "monitor:solana": "node src/solana/solana_smart_money_monitor.js",
     "monitor:cex": "node src/cex/cexBot.js",
     "telegram:test": "node tests/telegram_test.js",
+    "report:top": "node src/utils/top_performers_report.js",
+    "report:perf": "node src/utils/performance_report.js",
     "wallet:analyze": "node tests/wallet_analyzer_test.js",
     "simulator:demo": "node tests/trading_simulator_demo.js",
     "price:fetch": "node tests/price_fetcher_test.js",
