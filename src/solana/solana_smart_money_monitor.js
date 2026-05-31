@@ -91,7 +91,7 @@ const notifier = new TelegramNotifier({
 });
 
 /**
- * Persist discovery signals to SQLite
+ * Persist discovery signals to SQLite with Smart Notification logic
  */
 async function persistDiscoveryCandidates(candidates) {
   for (const c of candidates) {
@@ -99,14 +99,14 @@ async function persistDiscoveryCandidates(candidates) {
       const now = new Date();
       const accumInfo = `Akumulasi ${now.toLocaleDateString('id-ID')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
       
-      await dbManager.addToMonitor({
+      const dbResult = await dbManager.addToMonitor({
         token_address: c.token.mint,
         symbol: c.token.symbol,
-        status: 'DISCOVERY', // Ganti timeframe jadi status
+        status: 'DISCOVERY',
         discovery_tier: c.labels?.tier || 'NEW',
         score: c.score || 0,
-        strategy_status: c.status || 'WATCHING', // Ganti status jadi strategy_status
-        timeframe: accumInfo, // Tambah timeframe untuk info akumulasi
+        strategy_status: c.status || 'WATCHING',
+        timeframe: accumInfo,
         pair_data: c.pair,
         holders_data: c.holderAnalytics,
         smart_money_data: c.smartWalletSignal,
@@ -116,8 +116,44 @@ async function persistDiscoveryCandidates(candidates) {
         smart_money_count: c.smartWalletSignal?.walletBuyCount || 0,
         whale_count: c.whaleSignal?.whaleWalletCount || 0
       });
+
+      // --- SMART NOTIFICATION LOGIC ---
+      const isNewDiscovery = dbResult.isNew;
+      const currentTier = c.labels?.tier || 'WATCH';
+      const oldTier = dbResult.oldData?.discovery_tier || 'WATCH';
+      
+      // Tier Priority: FIRE (2) > ALPHA (1) > WATCH/NEW (0)
+      const getTierWeight = (t) => t === 'FIRE' ? 2 : (t === 'ALPHA' ? 1 : 0);
+      const isUpgrade = getTierWeight(currentTier) > getTierWeight(oldTier);
+
+      const alertPayload = {
+        name: c.token.name,
+        symbol: c.token.symbol,
+        mint: c.token.mint,
+        marketCap: c.pair?.marketCap || 0,
+        liquidity: c.pair?.liquidityUsd || 0,
+        whaleCount: c.whaleSignal?.whaleWalletCount || 0,
+        insiderCount: c.smartWalletSignal?.walletBuyCount || 0,
+        rugcheckStatus: c.rug_status,
+        source: "Scanner Analysis"
+      };
+
+      if (isNewDiscovery) {
+        // Hanya kirim [NEW MONITOR] untuk koin yang benar-benar baru
+        if (currentTier === 'FIRE' || currentTier === 'ALPHA') {
+           await notifier.sendMonitorAlert(alertPayload);
+        }
+      } else if (isUpgrade) {
+        // Kirim [🔥 TIER UPGRADE] jika koin naik kelas
+        const upgradeMsg = `<b>[🔥 TIER UPGRADE] ${alertPayload.symbol} NAIK LEVEL!</b>\n\n` +
+                           `Koin ${alertPayload.symbol} sekarang masuk tier <b>${currentTier}</b> (sebelumnya ${oldTier}).\n` +
+                           `Skor saat ini: <code>${c.score}</code>\n\n` +
+                           `📄 CA: <code>${alertPayload.mint}</code>`;
+        await notifier.sendMessage(upgradeMsg);
+      }
+      
     } catch (err) {
-      // silent fail
+      console.error("[SCANNER] Notification error:", err.message);
     }
   }
 }
@@ -136,10 +172,19 @@ async function runMonitorCycle() {
   console.log(`\n[SCANNER HEARTBEAT] 🔍 Memulai siklus #${cycleCount} pada ${new Date().toLocaleTimeString()}`);
 
   try {
-    // 0. Quota Check
+    // 0. Quota & Cache Check
     const birdeyeQuota = await dbManager.checkApiQuota('birdeye');
     const heliusQuota = await dbManager.checkApiQuota('helius');
     console.log(`[QUOTA] Birdeye: ${birdeyeQuota ? 'OK' : 'LIMIT'}, Helius: ${heliusQuota ? 'OK' : 'LIMIT'}`);
+
+    // --- NEW: DB CACHE FOR OPTIMIZATION ---
+    const [existingMints, blacklistedMints] = await Promise.all([
+      dbManager.getMonitoredMints(),
+      dbManager.getBlacklistedMints()
+    ]);
+    const existingSet = new Set(existingMints);
+    const blacklistSet = new Set(blacklistedMints);
+    console.log(`[FILTER DB] Cache loaded: ${existingMints.length} dipantau | ${blacklistedMints.length} blacklist.`);
 
     // 1. Fetch Candidates from GMGN Smart Money Radar
     console.log("[🎯 RADAR] Memindai sinyal beli beruntun dari Smart Money via GMGN...");
@@ -156,82 +201,61 @@ async function runMonitorCycle() {
       isGmgVip: true
     })).filter(c => c.tokenAddress);
 
-    if (gmgnCandidates.length > 0) {
-      console.log(`[GMGN INJECTION] Memasukkan ${gmgnCandidates.length} koin VIP dari sinyal Smart Money ke jalur antrian.`);
-    }
-
     // 2. Fetch Candidates from DexScreener
     console.log("[SCANNER API] Mengambil koin terbaru dan boosted dari DexScreener...");
     const [boosts, profiles] = await Promise.all([
-      fetchLatestBoosts().catch(e => { console.error("[DEXSCREENER ERROR] Gagal ambil boosts:", e.message); return []; }),
-      fetchLatestTokenProfiles().catch(e => { console.error("[DEXSCREENER ERROR] Gagal ambil profiles:", e.message); return []; })
+      fetchLatestBoosts().catch(e => []),
+      fetchLatestTokenProfiles().catch(e => [])
     ]);
 
-    console.log(`[DEXSCREENER API] Berhasil menarik ${boosts.length + profiles.length} pair koin terbaru (${boosts.length} boosts, ${profiles.length} profiles).`);
-
-    // We no longer have 'birdeyeWatchlist' tokens directly, we rely on DexScreener and Whale Spy for new tokens.
-    // If you want to fetch tokens held by the GMGN smart wallets, that is handled by the Whale Discovery Spy.
-    
-    // Map to candidates format
+    // Map and Filter
     const rawCandidates = [...gmgnCandidates, ...boosts, ...profiles];
     const uniqueMints = new Set();
-    const candidates = [];
-
-    const preFilterStats = { total: rawCandidates.length, invalidAddr: 0, blacklisted: 0, duplicates: 0 };
+    const newTokensToScan = [];
+    const existingTokensToUpdate = [];
 
     for (const item of rawCandidates) {
       const mint = item.tokenAddress;
-      // Note: Profiles/Boosts API often lacks symbol. We'll enrich it later.
-      const symbol = (item.symbol || '').trim();
-
-      if (!mint) {
-        preFilterStats.invalidAddr++;
-        continue;
-      }
-      if (uniqueMints.has(mint)) {
-        preFilterStats.duplicates++;
-        continue;
-      }
-
+      if (!mint || uniqueMints.has(mint) || blacklistSet.has(mint)) continue;
+      if (!mint.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)) continue;
+      
       uniqueMints.add(mint);
 
-      // Simple address validation
-      if (!mint.match(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)) {
-        preFilterStats.invalidAddr++;
-        continue;
-      }
-
-      // Check Blacklist
-      if (await dbManager.isBlacklisted(mint)) {
-        preFilterStats.blacklisted++;
-        console.log(`[🛡️ BLACKLIST] Mengabaikan token ${symbol || mint.slice(0, 6)} karena pernah menyentuh SL atau dilarang.`);
-        continue;
-      }
-
-      candidates.push({
-        token: {
-          mint,
-          symbol: symbol || '?',
-          name: item.name || '?',
-          description: item.description || 'DexScreener discovery'
-        },
-        pair: {
-          url: item.url,
-          chainId: item.chainId,
-          boostsActive: item.amount || 0
-        },
-        score: item.amount ? 40 : 20, // Initial base score
+      const candidateObj = {
+        token: { mint, symbol: item.symbol || '?', name: item.name || '?', description: item.description || 'DexScreener discovery' },
+        pair: { url: item.url, chainId: item.chainId, boostsActive: item.amount || 0 },
+        score: item.amount ? 40 : 20,
         status: 'WATCH',
         isBirdeyeVip: !!item.isBirdeyeVip
-      });
+      };
+
+      if (existingSet.has(mint)) {
+        existingTokensToUpdate.push(candidateObj);
+      } else {
+        newTokensToScan.push(candidateObj);
+      }
     }
 
-    console.log(`[FILTER PRE-REKAP] Total API: ${preFilterStats.total} | Duplikat: ${preFilterStats.duplicates} | Invalid: ${preFilterStats.invalidAddr} | Blacklisted: ${preFilterStats.blacklisted} | Sisa: ${candidates.length}`);
+    console.log(`[FILTER DB] Lolos koin baru: ${newTokensToScan.length} | Koin lama di-update: ${existingTokensToUpdate.length}`);
 
+    // --- PIPELINE 1: LIGHT UPDATE (Existing Tokens - Silent) ---
+    for (const existing of existingTokensToUpdate) {
+      try {
+        const pairs = await fetchTokenPairs(existing.token.mint, config.chainId);
+        const bestPairRaw = selectBestPair(pairs, config.chainId);
+        if (!bestPairRaw) continue;
+        const metrics = extractPairMetrics(bestPairRaw);
+        
+        await dbManager.run(`UPDATE monitor_list SET price = ?, market_cap = ?, liq_status = ? WHERE token_address = ?`, 
+          [metrics.priceUsd, metrics.marketCap, metrics.liquidityUsd >= 50000 ? 'SAFE' : 'MEDIUM', existing.token.mint]);
+      } catch (e) {}
+    }
+
+    // --- PIPELINE 2: HEAVY SCAN (New Tokens Only) ---
     const enrichedCandidates = [];
-    const funnelStats = { total: candidates.length, noPair: 0, lowQuality: 0, rugRisk: 0, error: 0, lolos: 0 };
+    const funnelStats = { total: newTokensToScan.length, noPair: 0, lowQuality: 0, rugRisk: 0, error: 0, lolos: 0 };
 
-    for (const candidate of candidates.slice(0, config.discoveryLimit * 3)) {
+    for (const candidate of newTokensToScan.slice(0, config.discoveryLimit * 3)) {
       try {
         const mint = candidate.token.mint;
         
@@ -455,14 +479,14 @@ async function runMonitorCycle() {
           console.warn(`[SCANNER] Gagal simpan snapshot untuk ${candidate.token.symbol}:`, snapErr.message);
         }
 
-        // Task: Persist to DB IMMEDIATELY so user sees it on dashboard right away
-        await dbManager.addMonitorCoin({
+        // Task: Persist to DB IMMEDIATELY with Smart Notification logic
+        const dbResult = await dbManager.addMonitorCoin({
           token_address: mint,
           symbol: candidate.token.symbol,
-          status: isVip ? 'BIRDEYE_VIP' : 'DISCOVERY', // Ganti timeframe jadi status
+          status: isVip ? 'BIRDEYE_VIP' : 'DISCOVERY',
           discovery_tier: candidate.labels?.tier || 'NEW',
           score: candidate.score || 0,
-          strategy_status: candidate.status || 'WATCHING', // Ganti status jadi strategy_status
+          strategy_status: candidate.status || 'WATCHING',
           pair_data: candidate.pair,
           holders_data: candidate.holderAnalytics,
           smart_money_data: candidate.smartWalletSignal,
@@ -474,22 +498,41 @@ async function runMonitorCycle() {
           insider_count: candidate.holderAnalytics?.insiderCount || 0
         });
 
-        // Task: Telegram Notification for high tier finds
-        if (candidate.labels.tier === 'FIRE' || candidate.labels.tier === 'ALPHA') {
+        // --- SMART NOTIFICATION LOGIC ---
+        const isNewDiscovery = dbResult.isNew;
+        const currentTier = candidate.labels?.tier || 'WATCH';
+        const oldTier = dbResult.oldData?.discovery_tier || 'WATCH';
+        
+        const getTierWeight = (t) => t === 'FIRE' ? 2 : (t === 'ALPHA' ? 1 : 0);
+        const isUpgrade = getTierWeight(currentTier) > getTierWeight(oldTier);
+
+        if (isNewDiscovery) {
+          if (currentTier === 'FIRE' || currentTier === 'ALPHA') {
+            try {
+              await notifier.sendMonitorAlert({
+                name: candidate.token.name,
+                symbol: candidate.token.symbol,
+                mint: mint,
+                marketCap: metrics.marketCap,
+                liquidity: metrics.liquidityUsd,
+                whaleCount: candidate.whaleSignal?.whaleWalletCount || 0,
+                insiderCount: candidate.smartWalletSignal?.walletBuyCount || 0,
+                rugcheckStatus: candidate.rug_status,
+                source: isVip ? "Birdeye Smart Money" : "DexScreener Discovery"
+              });
+            } catch (tgErr) {
+              console.warn("[TELEGRAM ERROR] Gagal mengirim alert monitor:", tgErr.message);
+            }
+          }
+        } else if (isUpgrade) {
           try {
-            await notifier.sendMonitorAlert({
-              name: candidate.token.name,
-              symbol: candidate.token.symbol,
-              mint: mint,
-              marketCap: metrics.marketCap,
-              liquidity: metrics.liquidityUsd,
-              whaleCount: candidate.whaleSignal?.whaleWalletCount || 0,
-              insiderCount: candidate.smartWalletSignal?.walletBuyCount || 0,
-              rugcheckStatus: candidate.rug_status,
-              source: isVip ? "Birdeye Smart Money" : "DexScreener Discovery"
-            });
+            const upgradeMsg = `<b>[🔥 TIER UPGRADE] ${candidate.token.symbol} NAIK LEVEL!</b>\n\n` +
+                               `Koin ${candidate.token.symbol} sekarang masuk tier <b>${currentTier}</b> (sebelumnya ${oldTier}).\n` +
+                               `Skor saat ini: <code>${candidate.score}</code>\n\n` +
+                               `📄 CA: <code>${mint}</code>`;
+            await notifier.sendMessage(upgradeMsg);
           } catch (tgErr) {
-            console.warn("[TELEGRAM ERROR] Gagal mengirim alert monitor:", tgErr.message);
+            console.warn("[TELEGRAM ERROR] Gagal mengirim alert upgrade:", tgErr.message);
           }
         }
 
@@ -524,11 +567,16 @@ async function runMonitorCycle() {
 
     // 4. Run Paper Trading Cycle
     console.log("[SCANNER] Menjalankan mesin paper trading...");
-    const result = await runSolanaPaperTradingCycle(enrichedCandidates, { cycleCount });
-    
-    if (result && result.stats) {
-      const openPositions = (await dbManager.getActivePositions('solana')) || [];
-      console.log(`[SCANNER] Paper Trading: ${openPositions.length} posisi terbuka. Net PnL: ${result.stats.netPnlSol?.toFixed(4)} SOL`);
+    try {
+      const botConfig = await dbManager.getBotConfig();
+      const result = await runSolanaPaperTradingCycle(enrichedCandidates, { cycleCount, botConfig });
+      
+      if (result && result.stats) {
+        const openPositions = (await dbManager.getActivePositions('solana')) || [];
+        console.log(`[SCANNER] Paper Trading: ${openPositions.length} posisi terbuka. Net PnL: ${result.stats.netPnlSol?.toFixed(4)} SOL`);
+      }
+    } catch (paperErr) {
+      console.error("[SCANNER] Error pada mesin paper trading (Non-Fatal):", paperErr.message);
     }
 
   } catch (error) {
@@ -595,20 +643,42 @@ async function runWhaleDiscoverySpy() {
 
           console.log(`[SPY] AUTO-DISCOVERY! Injeksi koin dari paus: ${tokenData.token.symbol} (${mint.slice(0, 6)})`);
           
-          await dbManager.addToMonitor({
+          const now = new Date();
+          const accumInfo = `Akumulasi ${now.toLocaleDateString('id-ID')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+          const dbResult = await dbManager.addToMonitor({
             token_address: mint,
             symbol: tokenData.token.symbol,
-            timeframe: 'WHALE_SPY',
+            status: 'WHALE_SPY',
             discovery_tier: 'ALPHA',
             score: tokenData.score,
-            status: tokenData.status,
+            strategy_status: tokenData.status,
+            timeframe: accumInfo,
             pair_data: tokenData.pair,
             rug_status: tokenData.rug_status,
             liq_status: tokenData.liq_status,
-            // Fallbacks for UI
             smart_money_count: 1,
             whale_count: 1
           });
+
+          // Whale Spy Notification: Only if genuinely NEW to the monitor list
+          if (dbResult.isNew) {
+            try {
+              await notifier.sendMonitorAlert({
+                name: tokenData.token.name,
+                symbol: tokenData.token.symbol,
+                mint: mint,
+                marketCap: metrics.marketCap,
+                liquidity: metrics.liquidityUsd,
+                whaleCount: 1,
+                insiderCount: 0,
+                rugcheckStatus: audit.status,
+                source: "Whale Auto-Discovery"
+              });
+            } catch (tgErr) {
+               console.warn("[TELEGRAM ERROR] Gagal mengirim alert Whale Spy:", tgErr.message);
+            }
+          }
 
         } catch (err) {
           // ignore individual token errors

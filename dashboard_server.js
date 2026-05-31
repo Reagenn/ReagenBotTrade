@@ -219,15 +219,18 @@ async function buildDashboardPayload() {
     };
 
     monitored.forEach(m => {
-      const smart = m.smart_money_data ? JSON.parse(m.smart_money_data) : { walletBuyCount: 0 };
-      const whale = m.whale_data ? JSON.parse(m.whale_data) : { whaleWalletCount: 0 };
+      let smart = { walletBuyCount: 0, avgSmartScore: 0 };
+      let whale = { whaleWalletCount: 0 };
+      
+      try { if (m.smart_money_data) smart = JSON.parse(m.smart_money_data); } catch(e) {}
+      try { if (m.whale_data) whale = JSON.parse(m.whale_data); } catch(e) {}
       
       const candidate = {
         token: { mint: m.token_address, symbol: m.symbol },
         score: m.score,
-        status: m.strategy_status || 'WATCH', // Strategy status
-        timeframe: m.status || 'DISCOVERY', // Discovery status (old timeframe)
-        accumulation_info: m.timeframe, // Accumulation date/time
+        status: m.strategy_status || 'WATCH', 
+        timeframe: m.status || 'DISCOVERY',
+        accumulation_info: m.timeframe, 
         added_at: m.added_at,
         rug_status: m.rug_status,
         liq_status: m.liq_status,
@@ -243,12 +246,19 @@ async function buildDashboardPayload() {
         }
       };
 
-      const tf = String(m.status || "").toUpperCase(); // m.status now holds DISCOVERY, 1H, 4H, etc.
-      if (tf === '1H' || tf === 'DISCOVERY' || tf === '1M' || tf === '5M' || tf === 'NEW' || tf === 'BIRDEYE_VIP' || tf === 'WHALE_SPY') {
+      // KATEGORISASI BERDASARKAN JAM AKUMULASI (AGE)
+      const addedAt = new Date(m.added_at);
+      const ageMs = Date.now() - addedAt.getTime();
+      const ageHours = ageMs / (1000 * 60 * 60);
+
+      if (ageHours <= 1) {
+        // Akumulasi ≤ 1 Jam
         timeframeSections.sections["1hour"].items.push(candidate);
-      } else if (tf === '4H') {
+      } else if (ageHours <= 4) {
+        // Akumulasi 1 - 4 Jam
         timeframeSections.sections["4hour"].items.push(candidate);
-      } else if (tf === '1D') {
+      } else {
+        // Akumulasi > 4 Jam (Semua koin lainnya masuk ke 1 Day)
         timeframeSections.sections["1day"].items.push(candidate);
       }
     });
@@ -427,57 +437,64 @@ async function buildDashboardPayload() {
       result: t.result
     }));
 
-    // CEX Data
-    const dbCexPositions = await dbManager.getActivePositions('cex');
-    const dbCexTrades = await dbManager.getCexTrades(100);
-    const dbCexStats = await dbManager.getCexStats();
-    
-    if (dbCexStats) {
-      cexPaper.stats = {
-        totalTrades: dbCexStats.totalTrades,
-        profitTrades: dbCexStats.profitTrades,
-        lossTrades: dbCexStats.lossTrades,
-        winRate: dbCexStats.winRate,
-        netPnlUsdt: dbCexStats.netPnlUsdt,
-        balanceUsdt: await dbManager.getCexBalance()
-      };
-    }
-
-    cexPaper.activeTrades = dbCexPositions.map(p => {
-      const entryPrice = p.entry_price;
-      const currentPrice = p.current_price || entryPrice;
-      const amountUsdt = p.amount_usdt;
-      // Approx fee (0.1% entry + 0.1% exit estimate)
-      const entryFee = amountUsdt * 0.001; 
+    // CEX Data (Persistent SQLite)
+    try {
+      const dbCexPositions = await dbManager.getActivePositions('cex');
+      const dbCexTrades = await dbManager.getCexTrades(100);
+      const dbCexStats = await dbManager.getCexStats();
       
-      return {
-        id: p.id,
-        symbol: p.symbol,
-        entryPrice: entryPrice,
-        currentPrice: currentPrice,
-        amountUsdt: amountUsdt,
-        targetTP: p.target_tp,
-        targetSL: p.target_sl,
-        openedAt: p.opened_at,
-        fee: entryFee,
-        pnlUsdt: amountUsdt * ((currentPrice - entryPrice) / entryPrice),
-        pnlPct: entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0
-      };
-    });
-    cexPaper.tradeHistory = dbCexTrades.map(t => ({
-      id: t.id,
-      symbol: t.symbol,
-      entryPrice: t.entry_price,
-      exitPrice: t.exit_price,
-      amountUsdt: t.amount_usdt,
-      pnlUsdt: t.pnl_usd,
-      pnlPct: t.pnl_percent,
-      trigger: t.trigger_type,
-      openedAt: t.opened_at,
-      closedAt: t.closed_at,
-      type: "BUY",
-      result: t.result
-    }));
+      if (dbCexStats) {
+        cexPaper.stats = {
+          totalTrades: dbCexStats.total_trades || 0,
+          profitTrades: dbCexStats.profit_trades || 0,
+          lossTrades: dbCexStats.loss_trades || 0,
+          winRate: dbCexStats.win_rate || 0,
+          netPnlUsdt: dbCexStats.net_pnl_usdt || 0,
+          balanceUsdt: await dbManager.getCexBalance()
+        };
+      }
+
+      cexPaper.activeTrades = dbCexPositions.map(p => {
+        const entryPrice = p.entry_price;
+        const currentPrice = p.current_price || entryPrice;
+        const amountUsdt = p.amount_usdt;
+        const entryFee = amountUsdt * 0.001; 
+        
+        return {
+          id: p.id,
+          symbol: p.symbol,
+          entryPrice: entryPrice,
+          currentPrice: currentPrice,
+          amountUsdt: amountUsdt,
+          targetTP: p.target_tp,
+          targetSL: p.target_sl,
+          openedAt: p.opened_at,
+          fee: entryFee,
+          pnlUsdt: amountUsdt * ((currentPrice - entryPrice) / entryPrice),
+          pnlPct: entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0
+        };
+      });
+
+      cexPaper.tradeHistory = dbCexTrades.map(t => ({
+        id: t.id,
+        symbol: t.symbol,
+        entryPrice: t.entry_price,
+        exitPrice: t.exit_price,
+        amountUsdt: t.amount_usdt,
+        pnlUsdt: t.pnl_usd,
+        pnlPct: t.pnl_percent,
+        trigger: t.trigger_type,
+        openedAt: t.opened_at,
+        closedAt: t.closed_at,
+        type: "BUY",
+        result: t.result
+      }));
+    } catch (cexErr) {
+      console.error("[dashboard] CEX persistent enrichment error:", cexErr.message);
+      // Fallback to state if SQLite fails
+      const liveCexState = await dbManager.getState("cex_bot_state");
+      if (liveCexState) Object.assign(cexPaper, liveCexState);
+    }
   } catch (e) {
     console.error("[dashboard] Enrichment error:", e.message);
   }
@@ -751,4 +768,4 @@ if (require.main === module) {
   startDashboard();
 }
 
-module.exports = { startDashboard };
+module.exports = { startDashboard, buildDashboardPayload };

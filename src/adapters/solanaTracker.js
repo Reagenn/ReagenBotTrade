@@ -47,11 +47,13 @@ class SolanaTracker {
   /**
    * Mengambil data pemegang token Whale secara mandiri menggunakan native Solana Web3.js
    * @param {string} tokenAddress - SPL Token mint address
+   * @param {number} priceUsd - Current price for tier calculation
+   * @param {string[]} smartMoneyCache - Global list of smart money wallets for sync
    * @returns {Promise<object>} JSON sesuai dengan kebutuhan dashboard
    */
-  async getTokenWhales(tokenAddress, priceUsd = 0) {
+  async getTokenWhales(tokenAddress, priceUsd = 0, smartMoneyCache = []) {
     if (!tokenAddress) {
-      return { totalHolders: null, whaleCount: 0, tiers: { under10: null, over100: null, over1k: null, over10k: null } };
+      return { totalHolders: null, whaleCount: 0, smartMoneyCount: 0, tiers: { under10: null, over100: null, over1k: null, over10k: null } };
     }
 
     try {
@@ -162,11 +164,6 @@ class SolanaTracker {
       
       const totalSupply = supplyInfo.uiAmount || 0;
 
-      let whaleCount = 0;
-      let top20Sum = 0;
-      let warning = false;
-      const whaleWalletsList = [];
-
       // Identifikasi dev/deployer wallet (mint authority) dan Token Program ID dengan retry
       let devWallet = null;
       let tokenProgramId = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"); // Default to standard SPL Token Program
@@ -191,27 +188,94 @@ class SolanaTracker {
 
       await sleep(1500); // Throttling antar RPC
 
-      // 3. Iterasi 20 dompet terbesar untuk kalkulasi Whale & warning (>1.5% dan >10%)
-      for (const acc of largestAccounts) {
+      // 3. Ambil Detail Pemilik Token Account (untuk deteksi Smart Money & Insider)
+      let smartMoneyCount = 0;
+      let insiderCount = 0;
+      let whaleCount = 0;
+      let top20Sum = 0;
+      let warning = false;
+      const whaleWalletsList = [];
+
+      // Identifikasi pemilik dari top accounts (Batch)
+      const topAccountPubkeys = largestAccounts.map(acc => acc.address);
+      
+      // Task: Debug Log for sync verification
+      console.log(`[DEBUG] Membandingkan ${largestAccounts.length} holders dengan ${smartMoneyCache.length} Smart Money cached`);
+
+      let accountInfos = [];
+      if (topAccountPubkeys.length > 0) {
+        try {
+          // Chunk batch 100 (Solana limit)
+          accountInfos = await executeWithRetry(
+            () => connection.getMultipleParsedAccounts(topAccountPubkeys),
+            "getMultipleParsedAccounts"
+          );
+          accountInfos = accountInfos.value || [];
+        } catch (e) {
+          console.warn("[🐳 WHALE DETECTOR] Gagal mengambil detail owner top accounts:", e.message);
+        }
+      }
+
+      // 4. Iterasi 20 dompet terbesar untuk kalkulasi Whale, Smart Money & Insider
+      for (let i = 0; i < largestAccounts.length; i++) {
+        const acc = largestAccounts[i];
+        const info = accountInfos[i];
         const uiAmount = acc.uiAmount ?? (Number(acc.amount) / 10 ** (supplyInfo.decimals || 0));
-        const address = acc.address.toBase58();
+        const tokenAccountAddress = acc.address.toBase58();
         const percent = totalSupply > 0 ? (uiAmount / totalSupply) * 100 : 0;
 
+        // Ekstrak Owner (Wallet Address)
+        const ownerAddress = info?.data?.parsed?.info?.owner || null;
+        
         top20Sum += percent;
 
-        // Jika memegang > 1.5% dari Total Supply
+        // --- Deteksi Whale (>1.5%) ---
         if (percent > 1.5) {
           whaleCount++;
           whaleWalletsList.push({
-            address,
+            address: ownerAddress || tokenAccountAddress,
             uiAmount,
-            percent: percent.toFixed(2) + "%"
+            percent: percent.toFixed(2) + "%",
+            isOwner: !!ownerAddress
           });
+        }
+
+        // --- Deteksi Smart Money (Check Cache & Database) ---
+        if (ownerAddress) {
+          // Task: Primary check via provided cache (GMGN Radar sync)
+          if (smartMoneyCache.includes(ownerAddress)) {
+             smartMoneyCount++;
+             console.log(`[🧠 SMART MONEY] Terdeteksi Smart Money (GMGN Radar) di Top Holders: ${ownerAddress.slice(0, 12)}...`);
+          } else {
+            // Fallback: Check local DB if not in current cycle cache
+            try {
+              const isSmart = await dbManager.query("SELECT 1 FROM smart_wallets WHERE wallet_address = ?", [ownerAddress]);
+              if (isSmart && isSmart.length > 0) {
+                smartMoneyCount++;
+                console.log(`[🧠 SMART MONEY] Terdeteksi Smart Money (Database) di Top Holders: ${ownerAddress.slice(0, 12)}...`);
+              }
+            } catch (e) { /* silent */ }
+          }
+
+          // --- Deteksi Insider (Heuristik) ---
+          // Kriteria: Persentase > 2.5%, Bukan deployer, Bukan program sistem
+          const isNotDeployer = !devWallet || ownerAddress !== devWallet.toBase58();
+          const isExtremeHolder = percent > 2.5;
+          
+          // Cek apakah ownerAddress adalah Program (biasanya wallet tidak punya data executable)
+          // parsed account info biasanya menunjukkan ini adalah 'spl-token' account, owner-nya adalah wallet.
+          // Jadi kita cek ownerAddress-nya sendiri (opsional: fetchAccountInfo lagi, tapi mahal).
+          // Untuk saat ini, kita anggap wallet jika dia memiliki token account yang diparsing.
+          
+          if (isExtremeHolder && isNotDeployer) {
+             insiderCount++;
+             console.log(`[🕵️ INSIDER] Peringatan! Dompet Insider terdeteksi memegang ${percent.toFixed(1)}% supply: ${ownerAddress.slice(0, 12)}...`);
+          }
         }
 
         // Warning jika ada 1 dompet selain dev yang memegang > 10%
         if (percent > 10) {
-          if (devWallet && address === devWallet.toBase58()) {
+          if (devWallet && ownerAddress === devWallet.toBase58()) {
             // Ini dompet dev/owner, lewati warning
           } else {
             warning = true;
@@ -219,7 +283,7 @@ class SolanaTracker {
         }
       }
 
-      // 4. Hitung total holder count secara native dengan retry
+      // 5. Hitung total holder count secara native dengan retry
       let totalHolders = 0;
       let accounts = [];
       try {
@@ -348,6 +412,8 @@ class SolanaTracker {
       const result = {
         totalHolders: totalHolders || null,
         whaleCount,
+        smartMoneyCount,
+        insiderCount,
         topHoldersSupplyPercent: Math.round(top20Sum) + "%",
         warning,
         whales: whaleWalletsList,
@@ -361,7 +427,7 @@ class SolanaTracker {
         source: accounts.length > 0 ? "helius_native_rpc" : "helius_native_rpc_limited"
       };
 
-      console.log(`[🐳 WHALE DETECTOR] Deteksi selesai: ${whaleCount} whale, Top 20 hold: ${result.topHoldersSupplyPercent}, Tiers: <$10:${under10}, >=$100:${over100}, >=$1k:${over1k}, >=$10k:${over10k}`);
+      console.log(`[📊 HOLDER PROFILER] Token: ${tokenAddress.slice(0, 8)}... | Whale: ${whaleCount} | Smart Money: ${smartMoneyCount} | Insider: ${insiderCount}`);
       return result;
     } catch (error) {
       console.error(`[🐳 WHALE DETECTOR] Gagal mendeteksi token whale untuk ${tokenAddress}:`, error.message);

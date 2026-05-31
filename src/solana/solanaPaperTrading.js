@@ -16,7 +16,7 @@ const config = {
   buyAmountSol: Number(process.env.SIM_DEFAULT_BUY_SOL || process.env.SOLANA_PAPER_BUY_SOL || 0.5),
   takeProfitPct: Number(process.env.SIM_TAKE_PROFIT_PCT || 50),
   stopLossPct: Number(process.env.SIM_STOP_LOSS_PCT || 20),
-  maxOpenPositions: Number(process.env.SOLANA_PAPER_MAX_OPEN || 12),
+  maxOpenPositions: Number(process.env.SOLANA_PAPER_MAX_OPEN || 20),
   maxHistory: Number(process.env.SOLANA_PAPER_MAX_HISTORY || 120),
   buyTriggers: String(process.env.SOLANA_PAPER_BUY_TRIGGERS || "fire,must_buy,buy_zone,strong_buy,phoenix_fire,phoenix_candidate,alpha,phoenix_pre_ign")
     .split(",")

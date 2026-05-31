@@ -2620,6 +2620,25 @@ h2 {
   border-bottom: 1px solid rgba(148, 178, 207, 0.08);
 }
 
+.tag-insider {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  font-weight: 600;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.tag-insider-xs {
+  display: inline-block;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  margin-left: 4px;
+}
+
 @media (max-width: 960px) {
   .paper-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

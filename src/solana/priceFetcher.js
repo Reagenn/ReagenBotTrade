@@ -332,7 +332,7 @@ async function getExecutionPrice(tokenAddress) {
       return Number(price);
     }
   } catch (e) {
-    console.warn(`[priceFetcher] Jupiter v2 execution price fail for ${mint.slice(0,6)}: ${e.message}`);
+    // console.warn(`[priceFetcher] Jupiter v2 execution price fail for ${mint.slice(0,6)}: ${e.message}`);
   }
 
   // Fallback ke Birdeye jika Jupiter gagal
@@ -344,6 +344,43 @@ async function getExecutionPrice(tokenAddress) {
     const quote = await fetchDexScreenerPrice(mint);
     return quote.priceUsd;
   }
+}
+
+/**
+ * Jalur Eksekusi Batch: Ambil harga akurat Jupiter v2 untuk banyak koin.
+ * Digunakan oleh SimulationEngine untuk sinkronisasi harga posisi aktif.
+ */
+async function getExecutionPriceBatch(mints = []) {
+  const uniqueMints = [...new Set(mints.filter(isValidSolanaAddress))];
+  if (uniqueMints.length === 0) return {};
+
+  const results = {};
+  try {
+    const JUP_API_KEY = process.env.JUPITER_API_KEY || "";
+    const response = await axios.get(`https://api.jup.ag/price/v2`, {
+      params: { ids: uniqueMints.join(',') },
+      headers: JUP_API_KEY ? { 'x-api-key': JUP_API_KEY } : {},
+      timeout: 5000
+    });
+    
+    const data = response.data?.data || {};
+    uniqueMints.forEach(m => {
+      if (data[m]?.price) results[m] = Number(data[m].price);
+    });
+  } catch (e) {
+    console.warn(`[priceFetcher] Jupiter batch execution price fail: ${e.message}`);
+  }
+
+  // Fill missing with UI batch (DexScreener)
+  const missing = uniqueMints.filter(m => !results[m]);
+  if (missing.length > 0) {
+    try {
+      const fallback = await getUIPriceBatch(missing);
+      Object.assign(results, fallback);
+    } catch (e) {}
+  }
+
+  return results;
 }
 
 const priceProviders = [
@@ -450,6 +487,7 @@ module.exports = {
   getTokenPrices,
   getUIPriceBatch,
   getExecutionPrice,
+  getExecutionPriceBatch,
   fetchBirdeyePrice,
   fetchJupiterPrice,
   fetchDexScreenerPrice,

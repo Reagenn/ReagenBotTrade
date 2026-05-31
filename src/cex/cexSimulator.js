@@ -207,19 +207,29 @@ class CexSimulator {
       const active = await dbManager.getActivePositions('cex');
       this.balanceUsdt = await dbManager.getCexBalance();
 
+      // Robust mapping with defaults to prevent null pointer crashes
       return {
-        totalTrades: stats.totalTrades,
-        profitTrades: stats.profitTrades,
-        lossTrades: stats.lossTrades,
-        winRate: round(stats.winRate, 1),
-        netPnlUsdt: round(stats.netPnlUsdt, 2),
+        totalTrades: stats?.total_trades || 0,
+        profitTrades: stats?.profit_trades || 0,
+        lossTrades: stats?.loss_trades || 0,
+        winRate: round(stats?.win_rate || 0, 1),
+        netPnlUsdt: round(stats?.net_pnl_usdt || 0, 2),
         openPositions: active.length,
         balanceUsdt: this.balanceUsdt,
         generatedAt: new Date().toISOString(),
       };
     } catch (err) {
       console.error("[CexSimulator] Error in getStats:", err.message);
-      return {};
+      return {
+        totalTrades: 0,
+        profitTrades: 0,
+        lossTrades: 0,
+        winRate: 0,
+        netPnlUsdt: 0,
+        openPositions: 0,
+        balanceUsdt: this.balanceUsdt,
+        generatedAt: new Date().toISOString()
+      };
     }
   }
 

@@ -34,11 +34,8 @@ db.on('error', (err) => {
 const query = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     db.all(sql, params, (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
+      if (err) reject(err);
+      else resolve(rows);
     });
   });
 };
@@ -57,7 +54,7 @@ const run = (sql, params = []) => {
  */
 async function initDb() {
   try {
-    // Tabel App State (Generic JSON storage)
+    // Tabel App State
     await run(`CREATE TABLE IF NOT EXISTS app_state (
       key TEXT PRIMARY KEY,
       value TEXT,
@@ -74,10 +71,10 @@ async function initDb() {
       amount REAL,
       pnl_usd REAL,
       pnl_percent REAL,
-      trigger_type TEXT -- TP / SL / MANUAL / ENTRY
+      trigger_type TEXT
     )`);
 
-    // Tabel Token Snapshots (History Chart)
+    // Tabel Token Snapshots
     await run(`CREATE TABLE IF NOT EXISTS token_snapshots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -88,19 +85,19 @@ async function initDb() {
       market_cap REAL
     )`);
 
-    // Tabel Monitor List (REFACTORED V2)
+    // Tabel Monitor List
     await run(`CREATE TABLE IF NOT EXISTS monitor_list (
       token_address TEXT PRIMARY KEY,
       symbol TEXT,
       added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      status TEXT, -- Menampung info penemuan (DISCOVERY, BIRDEYE_VIP, dll)
+      status TEXT,
       holders_data TEXT,
       smart_money_data TEXT,
       whale_data TEXT,
       pair_data TEXT,
       discovery_tier TEXT,
       score REAL,
-      strategy_status TEXT, -- Menampung info strategi (WATCHING, BUY_ZONE, dll)
+      strategy_status TEXT,
       rug_status TEXT,
       liq_status TEXT,
       smart_money_count INTEGER,
@@ -108,51 +105,29 @@ async function initDb() {
       insider_count INTEGER,
       price REAL,
       market_cap REAL,
-      timeframe TEXT -- Menampung info akumulasi (Tgl & Jam)
+      timeframe TEXT
     )`);
 
-    // Migration: Update columns to reflect new schema (Institutional Grade Migration)
-    try { 
+    // Migration for monitor_list
+    try {
       const cols = await query("PRAGMA table_info(monitor_list)");
-      
-      // 1. Rename status to strategy_status if strategy_status doesn't exist
       if (cols.some(c => c.name === 'status') && !cols.some(c => c.name === 'strategy_status')) {
-        console.log("[DB] Migrating: Adding strategy_status column...");
         await run("ALTER TABLE monitor_list ADD COLUMN strategy_status TEXT");
         await run("UPDATE monitor_list SET strategy_status = status");
-        
-        // After shifting status data to strategy_status, we repurpose status to hold discovery info (old timeframe)
         if (cols.some(c => c.name === 'timeframe')) {
-          console.log("[DB] Migrating: Moving timeframe data to status and resetting timeframe...");
           await run("UPDATE monitor_list SET status = timeframe");
           await run("UPDATE monitor_list SET timeframe = NULL");
         }
       }
-
-      // Ensure all necessary columns exist
-      const requiredCols = [
-        { name: 'rug_status', type: 'TEXT' },
-        { name: 'liq_status', type: 'TEXT' },
-        { name: 'pair_data', type: 'TEXT' },
-        { name: 'smart_money_count', type: 'INTEGER' },
-        { name: 'whale_count', type: 'INTEGER' },
-        { name: 'insider_count', type: 'INTEGER' },
-        { name: 'price', type: 'REAL' },
-        { name: 'market_cap', type: 'REAL' },
-        { name: 'timeframe', type: 'TEXT' }
-      ];
-
-      for (const col of requiredCols) {
-        if (!cols.some(c => c.name === col.name)) {
-          console.log(`[DB] Migrating: Adding missing column '${col.name}' to monitor_list`);
-          await run(`ALTER TABLE monitor_list ADD COLUMN ${col.name} ${col.type}`);
+      const required = ['rug_status', 'liq_status', 'pair_data', 'smart_money_count', 'whale_count', 'insider_count', 'price', 'market_cap', 'timeframe'];
+      for (const col of required) {
+        if (!cols.some(c => c.name === col)) {
+          await run(`ALTER TABLE monitor_list ADD COLUMN ${col} ${col.includes('count') || col.includes('price') || col.includes('cap') ? 'REAL' : 'TEXT'}`);
         }
       }
-    } catch (migErr) {
-      console.warn('[DB] Migrasi skema monitor_list (non-fatal):', migErr.message);
-    }
+    } catch (e) { console.error("[DB] Monitor migration error:", e.message); }
 
-    // Tabel Blacklisted Tokens
+    // Tabel Blacklist
     await run(`CREATE TABLE IF NOT EXISTS blacklisted_tokens (
       token_address TEXT PRIMARY KEY,
       symbol TEXT,
@@ -160,67 +135,42 @@ async function initDb() {
       blacklisted_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Tabel Solana Paper Trades
+    // Tabel Paper Trading (Solana)
     await run(`CREATE TABLE IF NOT EXISTS solana_paper_trades (
       id TEXT PRIMARY KEY,
-      token_address TEXT,
-      symbol TEXT,
-      entry_price REAL,
-      exit_price REAL,
-      amount_sol REAL,
-      pnl_sol REAL,
-      pnl_pct REAL,
-      result TEXT, -- PROFIT / LOSS
-      trigger_type TEXT,
-      opened_at DATETIME,
-      closed_at DATETIME,
-      total_fees_sol REAL
+      token_address TEXT, symbol TEXT, entry_price REAL, exit_price REAL, amount_sol REAL, pnl_sol REAL, pnl_pct REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME
     )`);
-
-    // Tabel Solana Paper Positions
     await run(`CREATE TABLE IF NOT EXISTS solana_paper_positions (
-      id TEXT PRIMARY KEY,
-      token_address TEXT,
-      symbol TEXT,
-      entry_price REAL,
-      current_price REAL,
-      amount_sol REAL,
-      target_tp REAL,
-      target_sl REAL,
-      opened_at DATETIME,
-      metadata TEXT
+      id TEXT PRIMARY KEY, token_address TEXT, symbol TEXT, entry_price REAL, current_price REAL, amount_sol REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT
     )`);
 
-    // Tabel Konfigurasi Bot
+    // Tabel Paper Trading (CEX)
+    await run(`CREATE TABLE IF NOT EXISTS cex_paper_positions (
+      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, current_price REAL, amount_usdt REAL, amount_token REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT
+    )`);
+    await run(`CREATE TABLE IF NOT EXISTS cex_paper_trades (
+      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, exit_price REAL, amount_usdt REAL, pnl_usd REAL, pnl_percent REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME
+    )`);
+
+    // Tabel Statistik
+    await run(`CREATE TABLE IF NOT EXISTS bot_stats (
+      id INTEGER PRIMARY KEY,
+      total_trades INTEGER DEFAULT 0, profit_trades INTEGER DEFAULT 0, loss_trades INTEGER DEFAULT 0, win_rate REAL DEFAULT 0, net_pnl_sol REAL DEFAULT 0, net_pnl_usdt REAL DEFAULT 0, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    try {
+      const statsCols = await query("PRAGMA table_info(bot_stats)");
+      if (!statsCols.some(c => c.name === 'net_pnl_usdt')) {
+        await run("ALTER TABLE bot_stats ADD COLUMN net_pnl_usdt REAL DEFAULT 0");
+      }
+    } catch (e) {}
+
+    // Tabel Bot Config
     await run(`CREATE TABLE IF NOT EXISTS bot_config (
       id INTEGER PRIMARY KEY CHECK (id = 1),
-      is_enabled BOOLEAN DEFAULT 1,
-      buy_amount_sol REAL DEFAULT 0.5,
-      take_profit_pct REAL DEFAULT 20,
-      stop_loss_pct REAL DEFAULT 20,
-      buy_triggers TEXT,
-      max_open_positions INTEGER DEFAULT 12,
-      quote_unit TEXT,
-      use_price_fetcher BOOLEAN DEFAULT 1,
-      use_token_validator BOOLEAN DEFAULT 1,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      is_enabled BOOLEAN DEFAULT 1, buy_amount_sol REAL DEFAULT 0.5, take_profit_pct REAL DEFAULT 20, stop_loss_pct REAL DEFAULT 20, buy_triggers TEXT, max_open_positions INTEGER DEFAULT 12, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Tabel Statistik Bot
-    await run(`CREATE TABLE IF NOT EXISTS bot_stats (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      total_trades INTEGER DEFAULT 0,
-      profit_trades INTEGER DEFAULT 0,
-      loss_trades INTEGER DEFAULT 0,
-      win_rate REAL DEFAULT 0,
-      net_pnl_sol REAL DEFAULT 0,
-      total_fees_sol REAL DEFAULT 0,
-      total_invested_sol REAL DEFAULT 0,
-      avg_pnl_sol REAL DEFAULT 0,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    // Tabel Telegram Sent Notifications
+    // Tabel Telegram
     await run(`CREATE TABLE IF NOT EXISTS sent_notifications (
       alert_key TEXT PRIMARY KEY,
       sent_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -228,23 +178,17 @@ async function initDb() {
 
     // Tabel Smart Wallets
     await run(`CREATE TABLE IF NOT EXISTS smart_wallets (
-      wallet_address TEXT PRIMARY KEY,
-      winrate REAL,
-      total_pnl REAL,
-      trade_count INTEGER,
-      last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+      wallet_address TEXT PRIMARY KEY, winrate REAL, total_pnl REAL, trade_count INTEGER, last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // Tabel API Quota Tracker
+    // API Quota
     await run(`CREATE TABLE IF NOT EXISTS api_quota_tracker (
-      date TEXT PRIMARY KEY,
-      helius_used INTEGER DEFAULT 0,
-      birdeye_used INTEGER DEFAULT 0
+      date TEXT PRIMARY KEY, helius_used INTEGER DEFAULT 0, birdeye_used INTEGER DEFAULT 0
     )`);
 
-    // Auto-insert default config & stats if not exist
-    await run(`INSERT OR IGNORE INTO bot_config (id, buy_triggers, quote_unit) VALUES (1, '["fire", "alpha", "must_buy"]', 'SOL')`);
     await run(`INSERT OR IGNORE INTO bot_stats (id) VALUES (1)`);
+    await run(`INSERT OR IGNORE INTO bot_stats (id) VALUES (2)`);
+    await run(`INSERT OR IGNORE INTO bot_config (id, buy_triggers) VALUES (1, '["fire", "alpha"]')`);
 
     console.log('[DB] Seluruh tabel berhasil diverifikasi/dibuat.');
   } catch (err) {
@@ -253,240 +197,133 @@ async function initDb() {
 }
 
 const dbManager = {
-  db,
-  initDb,
-  query,
-  run,
+  db, initDb, query, run,
 
-  // Balance Management
+  // Balances
   getPaperBalance: async () => {
     const row = await dbManager.getState("solana_paper_balance");
-    if (!row) {
-      const defaultBalance = 100.0;
-      await dbManager.saveState("solana_paper_balance", { balance: defaultBalance });
-      return defaultBalance;
+    return row ? Number(row.balance) : 100.0;
+  },
+  updatePaperBalance: async (val) => { return dbManager.saveState("solana_paper_balance", { balance: Number(val) }); },
+  getCexBalance: async () => {
+    const row = await dbManager.getState("cex_paper_balance");
+    return row ? Number(row.balance) : 1000.0;
+  },
+  updateCexBalance: async (val) => { return dbManager.saveState("cex_paper_balance", { balance: Number(val) }); },
+
+  // Positions
+  saveOpenPosition: async (type, pos) => {
+    if (type === 'solana') {
+      return run(`INSERT OR REPLACE INTO solana_paper_positions (id, token_address, symbol, entry_price, current_price, amount_sol, target_tp, target_sl, opened_at, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pos.id, pos.tokenAddress, pos.symbol, pos.entryPrice, pos.currentPrice, pos.amountSol, pos.targetTP, pos.targetSL, pos.openedAt, JSON.stringify(pos.metadata)]);
     }
-    return Number(row.balance);
-  },
-
-  updatePaperBalance: async (newBalance) => {
-    return await dbManager.saveState("solana_paper_balance", { balance: Number(newBalance) });
-  },
-
-  // Paper Trading Methods
-  savePaperPosition: async (pos) => {
-    const existing = await query(`SELECT id FROM solana_paper_positions WHERE token_address = ? LIMIT 1`, [pos.tokenAddress]);
-    if (existing && existing.length > 0) {
-      throw new Error(`Duplicate open position for ${pos.symbol}`);
+    if (type === 'cex') {
+      return run(`INSERT OR REPLACE INTO cex_paper_positions (id, symbol, entry_price, current_price, amount_usdt, amount_token, target_tp, target_sl, opened_at, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pos.id, pos.symbol, pos.entryPrice, pos.currentPrice, pos.amountUsdt, pos.amountToken, pos.targetTP, pos.targetSL, pos.openedAt, JSON.stringify(pos.metadata)]);
     }
-
-    const sql = `INSERT OR REPLACE INTO solana_paper_positions 
-                 (id, token_address, symbol, entry_price, current_price, amount_sol, target_tp, target_sl, opened_at, metadata) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-    return run(sql, [
-      pos.id,
-      pos.tokenAddress,
-      pos.symbol,
-      pos.entryPrice,
-      pos.currentPrice,
-      pos.amountSol,
-      pos.targetTP,
-      pos.targetSL,
-      pos.openedAt,
-      JSON.stringify(pos.metadata)
-    ]);
   },
-
   getActivePositions: async (type = 'solana') => {
+    return query(`SELECT * FROM ${type === 'solana' ? 'solana_paper_positions' : 'cex_paper_positions'} ORDER BY opened_at DESC`);
+  },
+  closePosition: async (type, id, price, pnlPct, trigger = 'MANUAL') => {
+    const pos = (await query(`SELECT * FROM ${type === 'solana' ? 'solana_paper_positions' : 'cex_paper_positions'} WHERE id = ?`, [id]))[0];
+    if (!pos) throw new Error("Posisi tidak ditemukan");
+    await run(`DELETE FROM ${type === 'solana' ? 'solana_paper_positions' : 'cex_paper_positions'} WHERE id = ?`, [id]);
     if (type === 'solana') {
-      return query(`SELECT * FROM solana_paper_positions ORDER BY opened_at DESC`);
+      const pnlSol = (pos.amount_sol * pnlPct) / 100;
+      await run(`INSERT INTO solana_paper_trades (id, token_address, symbol, entry_price, exit_price, amount_sol, pnl_sol, pnl_pct, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pos.id, pos.token_address, pos.symbol, pos.entry_price, price, pos.amount_sol, pnlSol, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, new Date().toISOString()]);
+      await dbManager.updatePaperBalance((await dbManager.getPaperBalance()) + pos.amount_sol + pnlSol);
+    } else {
+      const pnlUsdt = (pos.amount_usdt * pnlPct) / 100;
+      await run(`INSERT INTO cex_paper_trades (id, symbol, entry_price, exit_price, amount_usdt, pnl_usd, pnl_percent, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pos.id, pos.symbol, pos.entry_price, price, pos.amount_usdt, pnlUsdt, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, new Date().toISOString()]);
+      await dbManager.updateCexBalance((await dbManager.getCexBalance()) + pos.amount_usdt + pnlUsdt);
     }
-    return [];
+    return { success: true };
+  },
+  updatePositionPrice: async (id, price) => {
+    await run(`UPDATE solana_paper_positions SET current_price = ? WHERE id = ?`, [price, id]).catch(() => {});
+    return run(`UPDATE cex_paper_positions SET current_price = ? WHERE id = ?`, [price, id]).catch(() => {});
+  },
+  updateTradeTrigger: async (id, trigger) => {
+    await run(`UPDATE solana_paper_trades SET trigger_type = ? WHERE id = ?`, [trigger, id]).catch(() => {});
+    return run(`UPDATE cex_paper_trades SET trigger_type = ? WHERE id = ?`, [trigger, id]).catch(() => {});
   },
 
-  closePosition: async (type, id, finalPrice, pnlPercent, trigger = 'MANUAL') => {
-    if (type === 'solana') {
-      const positions = await query(`SELECT * FROM solana_paper_positions WHERE id = ?`, [id]);
-      if (!positions || positions.length === 0) throw new Error("ID posisi tidak valid");
-      const pos = positions[0];
-
-      const pnlSol = (pos.amount_sol * pnlPercent) / 100;
-      const closedAt = new Date().toISOString();
-      const resultLabel = pnlPercent >= 0 ? "PROFIT" : "LOSS";
-
-      await run(`DELETE FROM solana_paper_positions WHERE id = ?`, [id]);
-
-      const sqlTrade = `INSERT INTO solana_paper_trades 
-                       (id, token_address, symbol, entry_price, exit_price, amount_sol, pnl_sol, pnl_pct, result, trigger_type, opened_at, closed_at, total_fees_sol) 
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      await run(sqlTrade, [
-        pos.id, pos.token_address, pos.symbol, pos.entry_price, finalPrice, pos.amount_sol, pnlSol, pnlPercent, resultLabel, trigger, pos.opened_at, closedAt, 0
-      ]);
-
-      const currentBalance = await dbManager.getPaperBalance();
-      await dbManager.updatePaperBalance(currentBalance + pos.amount_sol + pnlSol);
-
-      if (trigger === 'SL' || trigger === 'STOP_LOSS') {
-        await dbManager.blacklistToken(pos.token_address, pos.symbol, "Hit SL - Auto Blacklist").catch(() => {});
-      }
-
-      return { success: true };
-    }
-    return { success: false };
+  // Stats & Config
+  getPaperTrades: async (limit = 50) => { return query(`SELECT * FROM solana_paper_trades ORDER BY closed_at DESC LIMIT ?`, [limit]); },
+  getCexTrades: async (limit = 50) => { return query(`SELECT * FROM cex_paper_trades ORDER BY closed_at DESC LIMIT ?`, [limit]); },
+  getPaperStats: async () => { return (await query(`SELECT * FROM bot_stats WHERE id = 1`))[0] || null; },
+  getCexStats: async () => { return (await query(`SELECT * FROM bot_stats WHERE id = 2`))[0] || null; },
+  getBotStats: async () => { return dbManager.getPaperStats(); },
+  updateBotStats: async (s, id = 1) => {
+    return run(`UPDATE bot_stats SET total_trades = ?, profit_trades = ?, loss_trades = ?, win_rate = ?, net_pnl_sol = ?, net_pnl_usdt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [s.total_trades, s.profit_trades, s.loss_trades, s.win_rate, s.net_pnl_sol || 0, s.net_pnl_usdt || 0, id]);
+  },
+  getBotConfig: async () => {
+    const c = (await query(`SELECT * FROM bot_config WHERE id = 1`))[0];
+    if (c) return { tradeMode: (process.env.TRADE_MODE || 'PAPER').toUpperCase(), isEnabled: !!c.is_enabled, buyAmountSol: c.buy_amount_sol, takeProfitPct: c.take_profit_pct, stopLossPct: c.stop_loss_pct, maxOpenPositions: c.max_open_positions, buyTriggers: JSON.parse(c.buy_triggers || '[]') };
+    return { tradeMode: 'PAPER', isEnabled: true, buyAmountSol: 0.05, takeProfitPct: 20, stopLossPct: 10, maxOpenPositions: 12, buyTriggers: ["fire", "alpha"] };
+  },
+  updateBotConfig: async (c) => {
+    return run(`UPDATE bot_config SET is_enabled = ?, buy_amount_sol = ?, take_profit_pct = ?, stop_loss_pct = ?, buy_triggers = ?, max_open_positions = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1`,
+      [c.is_enabled ? 1 : 0, c.buy_amount_sol, c.take_profit_pct, c.stop_loss_pct, JSON.stringify(c.buy_triggers), c.max_open_positions]);
   },
 
-  // Monitor List Methods
-  addToMonitor: async (data) => {
+  // Monitor
+  addToMonitor: async (d) => {
     try {
-      const tokenAddress = String(data.token_address || data.tokenAddress || "").trim();
-      if (!tokenAddress) throw new Error("token_address is missing");
-
-      if (await dbManager.isBlacklisted(tokenAddress)) return { changes: 0 };
-
-      const symbol = String(data.symbol || "?").toUpperCase();
-      const discoveryStatus = String(data.status || data.timeframe || "DISCOVERY");
-      const strategyStatus = String(data.strategy_status || data.status || "WATCHING");
-      
-      // Default timeframe to accumulation string if not provided
+      const mint = (d.token_address || d.tokenAddress || "").trim();
+      if (!mint) return { error: "missing CA", isNew: false };
+      const existing = await query(`SELECT discovery_tier FROM monitor_list WHERE token_address = ?`, [mint]);
+      const isNew = !existing?.length;
+      const symbol = String(d.symbol || "?").toUpperCase();
       const now = new Date();
-      const accumulationTimeframe = data.timeframe || `Akumulasi ${now.toLocaleDateString('id-ID')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-
-      const price = parseFloat(data.price || (data.pair_data ? data.pair_data.priceUsd : 0)) || 0;
-      const mcap = parseFloat(data.market_cap || (data.pair_data ? (data.pair_data.fdv || data.pair_data.marketCap) : 0)) || 0;
-
-      const safeJson = (val) => val ? JSON.stringify(val) : null;
-
-      const sql = `INSERT OR REPLACE INTO monitor_list 
-                   (token_address, symbol, added_at, status, holders_data, smart_money_data, whale_data, pair_data, discovery_tier, score, strategy_status, rug_status, liq_status, smart_money_count, whale_count, insider_count, price, market_cap, timeframe) 
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      
-      return await run(sql, [
-        tokenAddress, symbol, data.added_at || new Date().toISOString(), discoveryStatus,
-        safeJson(data.holders_data), safeJson(data.smart_money_data), safeJson(data.whale_data), safeJson(data.pair_data),
-        data.discovery_tier || "NEW", data.score || 0, strategyStatus, data.rug_status || "PENDING", data.liq_status || "PENDING",
-        data.smart_money_count || 0, data.whale_count || 0, data.insider_count || 0, price, mcap, accumulationTimeframe
-      ]);
-    } catch (error) {
-      console.error(`[DB ERROR] addToMonitor fail:`, error.message);
-      return { error: error.message, changes: 0 };
-    }
+      const accum = `Akumulasi ${now.toLocaleDateString('id-ID')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const sql = `INSERT OR REPLACE INTO monitor_list (token_address, symbol, added_at, status, holders_data, smart_money_data, whale_data, pair_data, discovery_tier, score, strategy_status, rug_status, liq_status, smart_money_count, whale_count, insider_count, price, market_cap, timeframe) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      const res = await run(sql, [mint, symbol, d.added_at || now.toISOString(), d.status || "DISCOVERY", JSON.stringify(d.holders_data), JSON.stringify(d.smart_money_data), JSON.stringify(d.whale_data), JSON.stringify(d.pair_data), d.discovery_tier || "NEW", d.score || 0, d.strategy_status || d.status || "WATCHING", d.rug_status || "PENDING", d.liq_status || "PENDING", d.smart_money_count || 0, d.whale_count || 0, d.insider_count || 0, parseFloat(d.price || 0), parseFloat(d.market_cap || 0), d.timeframe || accum]);
+      return { ...res, isNew, oldData: isNew ? null : existing[0] };
+    } catch (e) { return { error: e.message, isNew: false }; }
   },
-
-  addMonitorCoin: async (data) => {
-    return dbManager.addToMonitor(data);
-  },
-
-  getMonitorList: async (limit = 100) => {
-    return query(`
-      SELECT m.* FROM monitor_list m
-      LEFT JOIN blacklisted_tokens b ON m.token_address = b.token_address
-      WHERE b.token_address IS NULL
-      ORDER BY m.added_at DESC
-      LIMIT ?
-    `, [limit]);
-  },
-
-  updateMonitorAnalytics: async (mint, data) => {
-    const fields = [];
-    const params = [];
-    const mapping = {
-      holders_data: 'holders_data',
-      smart_money_data: 'smart_money_data',
-      whale_data: 'whale_data',
-      discovery_tier: 'discovery_tier',
-      score: 'score',
-      strategy_status: 'strategy_status',
-      status: 'status',
-      rug_status: 'rug_status',
-      liq_status: 'liq_status',
-      smart_money_count: 'smart_money_count',
-      whale_count: 'whale_count'
-    };
-
-    for (const [key, col] of Object.entries(mapping)) {
-      if (data[key] !== undefined) {
-        fields.push(`${col} = ?`);
-        params.push(typeof data[key] === 'object' ? JSON.stringify(data[key]) : data[key]);
-      }
-    }
-
-    if (fields.length === 0) return { changes: 0 };
-    params.push(mint);
-    return run(`UPDATE monitor_list SET ${fields.join(', ')} WHERE token_address = ?`, params);
-  },
+  getMonitorList: async (limit = 100) => { return query(`SELECT m.* FROM monitor_list m LEFT JOIN blacklisted_tokens b ON m.token_address = b.token_address WHERE b.token_address IS NULL ORDER BY m.added_at DESC LIMIT ?`, [limit]); },
+  getMonitoredMints: async () => { return (await query(`SELECT token_address FROM monitor_list`)).map(r => r.token_address); },
+  removeDeadCoins: async () => { return run(`DELETE FROM monitor_list WHERE symbol IN ('?', '-', '', NULL) OR price = 0 OR market_cap = 0 OR strategy_status = 'DEAD' OR liq_status = 'WEAK' OR rug_status IN ('HIGH', 'DANGER') OR datetime(added_at) < datetime('now', '-1 day')`); },
 
   // Blacklist
-  blacklistToken: async (tokenAddress, symbol, reason) => {
-    await run(`INSERT OR REPLACE INTO blacklisted_tokens (token_address, symbol, reason) VALUES (?, ?, ?)`, [tokenAddress, symbol, reason]);
-    await run(`DELETE FROM monitor_list WHERE token_address = ?`, [tokenAddress]);
+  isBlacklisted: async (mint) => { return (await query(`SELECT 1 FROM blacklisted_tokens WHERE token_address = ?`, [mint])).length > 0; },
+  getBlacklistedMints: async () => { return (await query(`SELECT token_address FROM blacklisted_tokens`)).map(r => r.token_address); },
+  blacklistToken: async (mint, symbol, reason) => {
+    await run(`INSERT OR REPLACE INTO blacklisted_tokens (token_address, symbol, reason) VALUES (?, ?, ?)`, [mint, symbol, reason]);
+    await run(`DELETE FROM monitor_list WHERE token_address = ?`, [mint]);
     return { success: true };
   },
 
-  isBlacklisted: async (tokenAddress) => {
-    const rows = await query(`SELECT 1 FROM blacklisted_tokens WHERE token_address = ?`, [tokenAddress]);
-    return rows && rows.length > 0;
-  },
-
-  isCoinInMonitorList: async (tokenAddress) => {
-    const rows = await query(`SELECT 1 FROM monitor_list WHERE token_address = ?`, [tokenAddress]);
-    return rows && rows.length > 0;
-  },
-
-  // Generic State
-  saveState: async (key, value) => {
-    return run(`INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [key, JSON.stringify(value)]);
-  },
-
-  getState: async (key) => {
-    const rows = await query(`SELECT value FROM app_state WHERE key = ?`, [key]);
-    if (rows && rows.length > 0) {
-      try { return JSON.parse(rows[0].value); } catch (e) { return null; }
-    }
-    return null;
-  },
-
-  // Telegram Dedup
-  checkNotificationSent: async (key, windowMs) => {
-    const rows = await query(`SELECT sent_at FROM sent_notifications WHERE alert_key = ?`, [key]);
-    if (!rows || rows.length === 0) return null;
-    const lastSent = new Date(rows[0].sent_at).getTime();
-    return (Date.now() - lastSent < windowMs) ? lastSent : null;
-  },
-
-  markNotificationSent: async (key) => {
-    return run(`INSERT OR REPLACE INTO sent_notifications (alert_key, sent_at) VALUES (?, CURRENT_TIMESTAMP)`, [key]);
-  },
-
   // Others
-  saveTokenSnapshot: async (data) => {
-    return run(`INSERT INTO token_snapshots (timestamp, token_address, token_name, holders_count, price_usd, market_cap) VALUES (?, ?, ?, ?, ?, ?)`, 
-      [data.timestamp || new Date().toISOString(), data.token_address, data.token_name, data.holders_count, data.price_usd, data.market_cap]);
+  saveState: async (k, v) => { return run(`INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [k, JSON.stringify(v)]); },
+  getState: async (k) => { const r = (await query(`SELECT value FROM app_state WHERE key = ?`, [k]))[0]; return r ? JSON.parse(r.value) : null; },
+  saveTrade: async (d) => { return run(`INSERT INTO trades (timestamp, pair, type, price, amount, pnl_usd, pnl_percent, trigger_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [d.timestamp || new Date().toISOString(), d.pair, d.type, d.price, d.amount, d.pnl_usd, d.pnl_percent, d.trigger_type]); },
+  getTradeHistory: async (limit = 50) => { return query(`SELECT * FROM trades ORDER BY timestamp DESC LIMIT ?`, [limit]); },
+  getTokenHistory: async (mint, limit = 24) => { return query(`SELECT * FROM token_snapshots WHERE token_address = ? ORDER BY timestamp DESC LIMIT ?`, [mint, limit]); },
+  saveTokenSnapshot: async (d) => { return run(`INSERT INTO token_snapshots (timestamp, token_address, token_name, holders_count, price_usd, market_cap) VALUES (?, ?, ?, ?, ?, ?)`, [d.timestamp || new Date().toISOString(), d.token_address, d.token_name, d.holders_count, d.price_usd, d.market_cap]); },
+  checkNotificationSent: async (k, ms) => {
+    const r = (await query(`SELECT sent_at FROM sent_notifications WHERE alert_key = ?`, [k]))[0];
+    if (!r) return null;
+    const last = new Date(r.sent_at).getTime();
+    return (Date.now() - last < ms) ? last : null;
   },
-
-  addOrUpdateSmartWallet: async (data) => {
-    return run(`INSERT OR REPLACE INTO smart_wallets (wallet_address, winrate, total_pnl, trade_count, last_updated) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`, 
-      [data.address, data.winrate, data.pnl, data.trades]);
-  },
-
-  checkApiQuota: async (apiName) => {
+  markNotificationSent: async (k) => { return run(`INSERT OR REPLACE INTO sent_notifications (alert_key, sent_at) VALUES (?, ?)`, [k, new Date().toISOString()]); },
+  checkApiQuota: async (api) => {
     const today = new Date().toISOString().split('T')[0];
-    const limits = { helius: 95000, birdeye: 2850 };
-    const limit = limits[apiName.toLowerCase()];
-    if (!limit) return true;
-    const rows = await query(`SELECT ${apiName.toLowerCase()}_used as used FROM api_quota_tracker WHERE date = ?`, [today]);
-    return !rows || rows.length === 0 || rows[0].used < limit;
+    const limit = api.toLowerCase() === 'birdeye' ? 2850 : 95000;
+    const rows = await query(`SELECT ${api.toLowerCase()}_used as used FROM api_quota_tracker WHERE date = ?`, [today]);
+    return !rows?.length || rows[0].used < limit;
   },
-
-  incrementApiUsage: async (apiName) => {
+  incrementApiUsage: async (api) => {
     const today = new Date().toISOString().split('T')[0];
-    const column = `${apiName.toLowerCase()}_used`;
+    const col = `${api.toLowerCase()}_used`;
     await run(`INSERT OR IGNORE INTO api_quota_tracker (date, helius_used, birdeye_used) VALUES (?, 0, 0)`, [today]);
-    return run(`UPDATE api_quota_tracker SET ${column} = ${column} + 1 WHERE date = ?`, [today]);
-  },
-
-  removeDeadCoins: async () => {
-    const sql = `DELETE FROM monitor_list WHERE symbol IN ('?', '-', '', NULL) OR price = 0 OR market_cap = 0 OR strategy_status = 'DEAD' OR liq_status = 'WEAK' OR rug_status IN ('HIGH', 'DANGER') OR datetime(added_at) < datetime('now', '-1 day')`;
-    return run(sql);
+    return run(`UPDATE api_quota_tracker SET ${col} = ${col} + 1 WHERE date = ?`, [today]);
   }
 };
 

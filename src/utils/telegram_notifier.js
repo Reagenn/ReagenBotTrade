@@ -75,10 +75,11 @@ class TelegramNotifier {
       return { skipped: true, reason: "duplicate", key };
     }
 
+    // Mark BEFORE sending to prevent race conditions
+    await this._markSent(key);
+
     const text = formatMonitorAlert(tokenData);
-    const result = await this.sendMessage(text, options);
-    if (result.success) await this._markSent(key);
-    return result;
+    return this.sendMessage(text, options);
   }
 
   async sendWhaleDiscovery(whaleData, options = {}) {
@@ -88,10 +89,10 @@ class TelegramNotifier {
       return { skipped: true, reason: "duplicate", key };
     }
 
+    await this._markSent(key);
+
     const text = formatWhaleDiscoveryAlert(whaleData);
-    const result = await this.sendMessage(text, options);
-    if (result.success) await this._markSent(key);
-    return result;
+    return this.sendMessage(text, options);
   }
 
   async sendSmartHunter(hunterData, options = {}) {
@@ -101,10 +102,10 @@ class TelegramNotifier {
       return { skipped: true, reason: "duplicate", key };
     }
 
+    await this._markSent(key);
+
     const text = formatSmartHunterAlert(hunterData);
-    const result = await this.sendMessage(text, options);
-    if (result.success) await this._markSent(key);
-    return result;
+    return this.sendMessage(text, options);
   }
 
   async sendPaperTradeAlert(tradeData, options = {}) {
@@ -114,10 +115,10 @@ class TelegramNotifier {
       return { skipped: true, reason: "duplicate", key };
     }
 
+    await this._markSent(key);
+
     const text = formatSolanaPaperAlert(tradeData);
-    const result = await this.sendMessage(text, options);
-    if (result.success) await this._markSent(key);
-    return result;
+    return this.sendMessage(text, options);
   }
 
   async sendCexSpikeAlert(cexData, options = {}) {
@@ -127,10 +128,10 @@ class TelegramNotifier {
       return { skipped: true, reason: "duplicate", key };
     }
 
+    await this._markSent(key);
+
     const text = formatCexSpikeAlert(cexData);
-    const result = await this.sendMessage(text, options);
-    if (result.success) await this._markSent(key);
-    return result;
+    return this.sendMessage(text, options);
   }
 
   async sendMessage(text, options = {}, attempt = 0) {

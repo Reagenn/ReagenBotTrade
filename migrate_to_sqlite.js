@@ -80,11 +80,14 @@ async function migrate() {
           console.log(`[Migrasi] Memproses ${entries.length} koin di monitor list...`);
           for (const [mint, data] of entries) {
             await dbManager.addToMonitor({
-              token_address: mint,
-              symbol: data.symbol || '?',
-              added_at: data.firstSeenAt,
-              timeframe: data.seen1d ? '1D' : data.seen4h ? '4H' : '1H'
+                token_address: data.mint,
+                symbol: data.symbol,
+                added_at: data.detected_at,
+                status: data.seen1d ? '1D' : data.seen4h ? '4H' : '1H', // Use status instead of timeframe
+                strategy_status: 'WATCHING',
+                timeframe: `Migrasi ${new Date().toLocaleDateString('id-ID')}`
             });
+
           }
         }
 

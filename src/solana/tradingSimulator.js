@@ -20,7 +20,7 @@ const DEX_FEE_RATE = 0.003;       // 0.3% fee per swap
 const VIRTUAL_SLIPPAGE = 0.015;   // 1.5% slippage price impact per swap
 const NETWORK_FEE_SOL = 0.001;     // 0.001 SOL flat priority fee
 const dbManager = require("../database/dbManager");
-const { getExecutionPrice } = require("./priceFetcher");
+const { getExecutionPrice, getExecutionPriceBatch } = require("./priceFetcher");
 
 class SimulationEngine {
   /**
@@ -160,32 +160,7 @@ class SimulationEngine {
 
       // JALUR EKSEKUSI: Ambil harga akurat Jupiter v2 untuk seluruh posisi aktif sekaligus
       const mints = [...new Set(activePositions.map(p => p.token_address))];
-      let jupiterPrices = {};
-      const { getUIPriceBatch } = require("./priceFetcher");
-
-      try {
-        const axios = require("axios");
-        const JUP_API_KEY = process.env.JUPITER_API_KEY || "";
-        const resp = await axios.get(`https://api.jup.ag/price/v2`, {
-          params: { ids: mints.join(',') },
-          headers: JUP_API_KEY ? { 'x-api-key': JUP_API_KEY } : {},
-          timeout: 5000
-        });
-        
-        const data = resp.data?.data || {};
-        mints.forEach(m => {
-          // Jupiter v2 returns prices in the 'price' field as a string
-          if (data[m]?.price) jupiterPrices[m] = Number(data[m].price);
-        });
-      } catch (e) {
-        console.warn(`[SimulationEngine] Jupiter batch fetch failed (${e.message}), beralih ke DexScreener/Birdeye...`);
-        // Fallback: Ambil harga batch dari priceFetcher (DexScreener/Birdeye)
-        try {
-          jupiterPrices = await getUIPriceBatch(mints);
-        } catch (fallbackErr) {
-          console.error(`[SimulationEngine] Fallback price fetch juga gagal: ${fallbackErr.message}`);
-        }
-      }
+      const executionPrices = await getExecutionPriceBatch(mints);
       
       for (const posRow of activePositions) {
         // Map DB row to position object format
@@ -203,7 +178,7 @@ class SimulationEngine {
         };
 
         // Prioritas: Jupiter (Execution) -> UI Map (DexScreener) -> Entry (Fallback)
-        const currentPrice = jupiterPrices[position.tokenAddress] || uiPrices[position.tokenAddress] || position.entryPrice;
+        const currentPrice = executionPrices[position.tokenAddress] || uiPrices[position.tokenAddress] || position.entryPrice;
 
         if (!Number.isFinite(Number(currentPrice)) || Number(currentPrice) <= 0) {
           stillOpenCount++;
