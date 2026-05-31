@@ -489,7 +489,7 @@ function renderSignalRows(target, candidatesRaw, emptyMessage, type) {
             <button class="copy-button" data-copy="${candidate.token?.mint || ""}">Copy CA</button>
             <a class="pill-inline" href="${pair.url || `https://dexscreener.com/solana/${candidate.token?.mint}`}" target="_blank" rel="noreferrer">DEX</a>
           </div>
-          <div class="signal-subvalue">${accumulation} | Acc ${waktuAkumulasi} | Rug ${rugRisk} | Age ${pairAge} | Liq ${liquiditySafety}</div>
+          <div class="signal-subvalue">${accumulation} | ${waktuAkumulasi} | Rug ${rugRisk} | Age ${pairAge} | Liq ${liquiditySafety}</div>
         </div>
       </article>
     `;
@@ -857,7 +857,7 @@ function renderBriefingCards(target, itemsRaw, emptyMessage, tier = "watch") {
         </div>
         <footer class="briefing-card-foot">
           <code class="briefing-ca" title="${mint}">${mint}</code>
-          <span class="briefing-mini">Akumulasi ${waktuAkumulasi}</span>
+          <span class="briefing-mini">${waktuAkumulasi}</span>
           <div class="briefing-card-actions">
             <button type="button" class="btn-paper-buy" data-action="manualBuy" data-address="${mint}" data-symbol="${candidate.token?.symbol || "-"}" data-price="${pair.priceUsd || 0}">🚀 BUY (Paper)</button>
             <button type="button" class="btn-token-details" data-token-details="${mint}">Token Details</button>
@@ -1121,10 +1121,11 @@ function renderDiscovery(payload) {
 }
 
 function renderTimeframeMonitorList(payload) {
-  const sections = payload?.timeframeSections;
-  const stats = payload?.filterStats;
+  // Task: Robust payload unpacking (Look at root OR nested in solanaSmartMoney)
+  const sections = payload?.timeframeSections || payload?.solanaSmartMoney?.timeframeSections;
+  const stats = payload?.filterStats || payload?.solanaSmartMoney?.filterStats;
 
-  console.log("[RENDER TRACER] renderTimeframeMonitorList dipanggil.");
+  console.log("[RENDER TRACER] renderTimeframeMonitorList dipanggil. Sections found:", !!sections);
 
   if (el.timeframeFilterStats) {
     if (!stats) {
@@ -1192,7 +1193,7 @@ function renderTimeframeMonitorList(payload) {
                 <span class="timeframe-win ${winTone}">${formatNumber(winRate, 1)}% WR</span>
               </div>
               <div class="timeframe-row-meta">
-                <span>Akum ${metrics.accumulationHourWIB || candidate.signals?.accumulationHourWIB || "—"}</span>
+                <span>${metrics.accumulationHourWIB || candidate.signals?.accumulationHourWIB || "—"}</span>
                 <span>Score ${formatNumber(candidate.score || 0, 0)}</span>
                 <span>Smart ${candidate.smart_money_count || 0}</span>
                 ${candidate.insider_count > 0 ? `<span class="tag-insider-xs">Ins ${candidate.insider_count}</span>` : ""}
@@ -1970,7 +1971,7 @@ async function loadDashboard() {
   // Unpack and distribute to renderers
   renderPhoenixScanner(solanaPayload);
   renderMorningBriefing(solanaPayload);
-  renderTimeframeMonitorList(solanaPayload);
+  renderTimeframeMonitorList(payload); // Pass root payload
   
   renderProviderHealth(solanaPayload);
   renderDiscovery(solanaPayload);
