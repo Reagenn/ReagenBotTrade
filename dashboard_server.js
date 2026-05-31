@@ -159,8 +159,10 @@ async function buildDashboardPayload() {
       return {
         token: { mint: m.token_address, symbol: m.symbol },
         score: m.score || 0,
-        status: m.status || 'WATCH',
-        timeframe: m.timeframe || 'DISCOVERY',
+        status: m.strategy_status || 'WATCH', // strategy_status holds STRONG_BUY etc.
+        discovery_source: m.status || 'DISCOVERY', // status holds DISCOVERY/BIRDEYE_VIP etc.
+        timeframe: m.status || 'DISCOVERY', // Keep for backward compatibility with some frontend logic
+        accumulation_info: m.timeframe, // timeframe holds Akumulasi... info
         added_at: m.added_at,
         pair: pair,
         // Standardized fields for Morning Briefing and Signal cards
@@ -173,7 +175,7 @@ async function buildDashboardPayload() {
         smartWalletSignal: smart,
         whaleSignal: whale,
         signals: {
-          accumulationHourWIB: m.added_at ? new Date(m.added_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB' : 'belum ada'
+          accumulationHourWIB: m.timeframe || (m.added_at ? new Date(m.added_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB' : 'belum ada')
         },
         labels: { accumulation: m.discovery_tier || 'NEW' },
         timing: 'Captured via SQLite Discovery'
@@ -223,20 +225,26 @@ async function buildDashboardPayload() {
       const candidate = {
         token: { mint: m.token_address, symbol: m.symbol },
         score: m.score,
-        status: m.status,
-        timeframe: m.timeframe,
+        status: m.strategy_status || 'WATCH', // Strategy status
+        timeframe: m.status || 'DISCOVERY', // Discovery status (old timeframe)
+        accumulation_info: m.timeframe, // Accumulation date/time
         added_at: m.added_at,
+        rug_status: m.rug_status,
+        liq_status: m.liq_status,
+        smart_money_count: m.smart_money_count,
+        whale_count: m.whale_count,
+        insider_count: m.insider_count || 0,
         smartWalletSignal: smart,
         whaleSignal: whale,
         timeframeMetrics: {
-          accumulationHourWIB: new Date(m.added_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+          accumulationHourWIB: m.timeframe || new Date(m.added_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
           winRate: smart.avgSmartScore || 0,
           persisted: false
         }
       };
 
-      const tf = String(m.timeframe || "").toUpperCase();
-      if (tf === '1H' || tf === 'DISCOVERY' || tf === '1M' || tf === '5M' || tf === 'NEW') {
+      const tf = String(m.status || "").toUpperCase(); // m.status now holds DISCOVERY, 1H, 4H, etc.
+      if (tf === '1H' || tf === 'DISCOVERY' || tf === '1M' || tf === '5M' || tf === 'NEW' || tf === 'BIRDEYE_VIP' || tf === 'WHALE_SPY') {
         timeframeSections.sections["1hour"].items.push(candidate);
       } else if (tf === '4H') {
         timeframeSections.sections["4hour"].items.push(candidate);

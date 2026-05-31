@@ -453,9 +453,9 @@ function renderSignalRows(target, candidatesRaw, emptyMessage, type) {
     const pairAge = formatHours(candidate.pair?.pairAgeHours);
     const mustBuy = candidate.signals?.mustBuy?.value;
     
-    const waktuAkumulasi = candidate.added_at 
+    const waktuAkumulasi = candidate.signals?.accumulationHourWIB || (candidate.added_at 
       ? new Date(candidate.added_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) + ' WIB' 
-      : (candidate.signals?.accumulationHourWIB || "—");
+      : "—");
 
     return `
       <article class="signal-row">
@@ -788,14 +788,15 @@ function renderBriefingCards(target, itemsRaw, emptyMessage, tier = "watch") {
     
     const smartCount = smartVal != null ? Number(smartVal) : 'N/A';
     const whaleCount = whaleVal != null ? Number(whaleVal) : 'N/A';
+    const insiderCount = candidate.insider_count || 0;
     
     const score = Number(candidate.score || 0);
     const mustBuy = candidate.signals?.mustBuy?.value;
     
     // Task: Fix Accumulation Time Formatting
-    const waktuAkumulasi = candidate.added_at 
+    const waktuAkumulasi = candidate.signals?.accumulationHourWIB || (candidate.added_at 
       ? new Date(candidate.added_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) + ' WIB' 
-      : 'Waktu tidak diketahui';
+      : 'Waktu tidak diketahui');
       
     const liveAgeText = isLive
       ? `Harga & vol live · ${formatAge(liveFetchedAt)}`
@@ -850,6 +851,7 @@ function renderBriefingCards(target, itemsRaw, emptyMessage, tier = "watch") {
           ${mustBuy ? '<span class="tag tag-hot">WAJIB BELI</span>' : ""}
           <span class="tag ${tagTone("smart", smartCount)}" title="Smart Money Wallets">Smart ${smartCount}</span>
           <span class="tag ${tagTone("whale", whaleCount)}" title="Whale Wallets">Whale ${whaleCount}</span>
+          ${insiderCount > 0 ? `<span class="tag tag-insider" title="Potential Insider Wallets">Insider ${insiderCount}</span>` : ""}
           <span class="tag ${tagTone("rug", rugRisk)}">Rug ${rugRisk}</span>
           <span class="tag ${tagTone("liq", liquiditySafety)}">Liq ${liquiditySafety}</span>
         </div>
@@ -1192,7 +1194,8 @@ function renderTimeframeMonitorList(payload) {
               <div class="timeframe-row-meta">
                 <span>Akum ${metrics.accumulationHourWIB || candidate.signals?.accumulationHourWIB || "—"}</span>
                 <span>Score ${formatNumber(candidate.score || 0, 0)}</span>
-                <span>Smart ${candidate.smartWalletSignal?.walletBuyCount || 0}</span>
+                <span>Smart ${candidate.smart_money_count || 0}</span>
+                ${candidate.insider_count > 0 ? `<span class="tag-insider-xs">Ins ${candidate.insider_count}</span>` : ""}
                 ${tfBadge}
               </div>
               <button type="button" class="btn-token-details btn-token-details-sm" data-token-details="${candidate.token?.mint || ""}">Details</button>
