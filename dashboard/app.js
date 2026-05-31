@@ -1230,30 +1230,27 @@ function renderMorningBriefing(input) {
     return sym && sym !== '?' && sym !== '-' && c.token?.mint;
   });
 
-  // Categorization with Type Casting & Relaxed Timeframe
+  // Categorization with Type Casting & Score-First Priority
   const mustBuy = validTokens.filter(c => {
     const score = Number(c.score || 0);
-    const status = (c.status || "").toUpperCase();
-    return score >= 85 && (status === "STRONG_BUY" || status === "DISCOVERY_FIRE");
+    return score >= 85;
   });
 
   const fire = validTokens.filter(c => {
     const score = Number(c.score || 0);
-    const status = (c.status || "").toUpperCase();
-    return score >= 75 && score < 85 && (status === "STRONG_BUY" || status === "DISCOVERY_FIRE");
+    return score >= 72 && score < 85;
   });
 
   const alpha = validTokens.filter(c => {
     const score = Number(c.score || 0);
-    const status = (c.status || "").toUpperCase();
-    return score >= 60 && score < 75 && (status === "BUY_ZONE" || status === "STRONG_BUY" || status === "DISCOVERY_ALPHA");
+    return score >= 60 && score < 72;
   });
 
   // Catch-all Watchlist: Every valid token not in upper tiers must appear here
   const watchlist = validTokens.filter(c => 
-    !mustBuy.includes(c) && 
-    !fire.includes(c) && 
-    !alpha.includes(c)
+    !mustBuy.some(m => m.token?.mint === c.token?.mint) && 
+    !fire.some(f => f.token?.mint === c.token?.mint) && 
+    !alpha.some(a => a.token?.mint === c.token?.mint)
   );
 
   console.log(`[DEBUG BRIEFING] Total koin diterima: ${validTokens.length} | Wajib: ${mustBuy.length} | FIRE: ${fire.length} | Alpha: ${alpha.length} | Watchlist: ${watchlist.length}`);
