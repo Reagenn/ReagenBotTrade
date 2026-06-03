@@ -388,21 +388,40 @@ async function buildDashboardPayload() {
       cards: phoenixCards
     };
 
-    // Sync Active Positions for Solana
+    // Tracked Wallets
+    try {
+      const wallets = await dbManager.getTrackedWallets();
+      payload.trackedWallets = wallets.map(w => ({
+        id: w.wallet_id,
+        type: w.type,
+        network: w.network,
+        alias: w.alias,
+        tags: JSON.parse(w.tags || "[]"),
+        profit7d: w.profit_7d,
+        roi7d: w.roi_7d,
+        profit30d: w.profit_30d,
+        roi30d: w.roi_30d,
+        avgInvested: w.avg_invested,
+        winRate: w.win_rate,
+        activity: w.activity
+      }));
+    } catch(e) {
+      console.error("[dashboard] Tracked wallets error:", e.message);
+    }
     const dbSolanaPositions = await dbManager.getActivePositions('solana');
     const dbSolanaTrades = await dbManager.getPaperTrades(100);
     const livePaperStats = await dbManager.getPaperStats();
 
     if (livePaperStats) {
       solanaPaper.stats = {
-        totalTrades: livePaperStats.totalTrades,
-        profitTrades: livePaperStats.profitTrades,
-        lossTrades: livePaperStats.lossTrades,
-        winRate: livePaperStats.winRate,
-        netPnlSol: livePaperStats.netPnlSol,
-        totalFeesSol: livePaperStats.totalFeesSol || 0,
-        totalInvestedSol: livePaperStats.totalInvestedSol,
-        avgPnlSol: livePaperStats.totalTrades > 0 ? livePaperStats.netPnlSol / livePaperStats.totalTrades : 0
+        totalTrades: livePaperStats.total_trades || 0,
+        profitTrades: livePaperStats.profit_trades || 0,
+        lossTrades: livePaperStats.loss_trades || 0,
+        winRate: livePaperStats.win_rate || 0,
+        netPnlSol: livePaperStats.net_pnl_sol || 0,
+        totalFeesSol: livePaperStats.total_fees_sol || 0,
+        totalInvestedSol: livePaperStats.total_invested_sol || 0,
+        avgPnlSol: livePaperStats.avg_pnl_sol || 0
       };
     }
 

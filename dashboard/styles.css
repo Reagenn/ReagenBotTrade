@@ -1985,6 +1985,89 @@ h2 {
   font-size: 0.82rem;
 }
 
+/* Top Performer Section */
+.top-performer-panel {
+  background: linear-gradient(165deg, rgba(12, 28, 48, 0.94), rgba(7, 14, 26, 0.98));
+  border-color: rgba(94, 234, 212, 0.25);
+  margin-bottom: 2rem;
+}
+
+.top-performer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.top-performer-card {
+  position: relative;
+  padding: 1rem;
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.top-performer-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.top-performer-multiplier {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  font-family: var(--mono);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 10px rgba(94, 234, 212, 0.4);
+}
+
+.top-performer-symbol {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.top-performer-ca {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--muted);
+  word-break: break-all;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.top-performer-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.top-performer-stat-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.top-performer-stat-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.top-performer-accum {
+  font-size: 0.72rem;
+  color: var(--accent-strong);
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
 @media (max-width: 1080px) {
   .holder-tier-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));

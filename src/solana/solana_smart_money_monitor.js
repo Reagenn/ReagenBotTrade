@@ -12,6 +12,7 @@ const {
   huntSmartMoney
 } = require("./birdeyeAdapter");
 const dbManager = require("../database/dbManager");
+const TelegramBot = require("../utils/telegram_bot");
 const tokenValidator = require("./tokenValidator");
 const { analyzeWallet } = require("./walletAnalyzer");
 const { runSolanaPaperTradingCycle } = require("./solanaPaperTrading");
@@ -480,7 +481,7 @@ async function runMonitorCycle() {
         }
 
         // Task: Persist to DB IMMEDIATELY with Smart Notification logic
-        const dbResult = await dbManager.addMonitorCoin({
+        const dbResult = await dbManager.addToMonitor({
           token_address: mint,
           symbol: candidate.token.symbol,
           status: isVip ? 'BIRDEYE_VIP' : 'DISCOVERY',
@@ -582,8 +583,8 @@ async function runMonitorCycle() {
   } catch (error) {
     console.error(`[SCANNER] Error pada siklus #${cycleCount}:`, error.message);
   } finally {
-    // 5. Database Cleanup (Garbage Collector)
-    await dbManager.removeDeadCoins().catch(() => {});
+    // 5. Database Cleanup (Garbage Collector) - DISABELD
+    // await dbManager.removeDeadCoins().catch(() => {});
     
     monitorCycleRunning = false;
     console.log(`[SCANNER] Siklus #${cycleCount} selesai. Standby hingga interval berikutnya.`);
@@ -716,6 +717,13 @@ async function startBot() {
       alphaScraper.listenToChannels(channels);
     }
 
+    // Start Telegram Command Listener
+    const bot = new TelegramBot({
+      botToken: config.telegramBotToken,
+      chatId: config.telegramChatId
+    });
+    bot.start();
+
     // Initial run
     await runMonitorCycle();
 
@@ -725,10 +733,12 @@ async function startBot() {
     // Run Whale Discovery Spy every 4 cycles (approx every 20 mins if poll is 5 mins)
     setInterval(runWhaleDiscoverySpy, config.pollIntervalMs * 4);
 
-    // Task: Periodic Garbage Collector (Every 15 mins)
+    // Task: Periodic Garbage Collector (Disabled)
+    /*
     setInterval(async () => {
       await dbManager.removeDeadCoins().catch(() => {});
     }, 15 * 60 * 1000);
+    */
 
     // Task: Fast Price Update Loop (Background worker)
     // Refreshes token prices in SQLite every 45 seconds so dashboard feels live.
@@ -747,10 +757,30 @@ async function startBot() {
           const newPrice = freshPrices[m.token_address];
           if (newPrice) {
             try {
+              // Ensure initial_price is set if missing (backfill)
+              if (!m.initial_price || m.initial_price === 0) {
+                await dbManager.run(`UPDATE monitor_list SET initial_price = ?, ath_price = ? WHERE token_address = ?`, [newPrice, newPrice, m.token_address]);
+                m.initial_price = newPrice;
+                m.ath_price = newPrice;
+              }
+
+              // Check for >50% drop (Drawdown Protection)
+              const refPrice = m.ath_price || m.initial_price || 0;
+              if (refPrice > 0) {
+                const dropPct = ((refPrice - newPrice) / refPrice) * 100;
+                if (dropPct > 50) {
+                  console.log(`[SYSTEM] Token ${m.symbol} (${m.token_address}) turun >50% (${dropPct.toFixed(1)}%). Memindahkan ke Blacklist.`);
+                  await dbManager.blacklistToken(m.token_address, m.symbol, `Drawdown > 50% from peak ($${refPrice} -> $${newPrice})`);
+                  continue; // Skip further updates for this token
+                }
+              }
+
               const pair = m.pair_data ? JSON.parse(m.pair_data) : {};
               pair.priceUsd = newPrice;
-              // Simple update back to DB
-              await dbManager.run(`UPDATE monitor_list SET pair_data = ? WHERE token_address = ?`, [JSON.stringify(pair), m.token_address]);
+              // Update price and pair_data in DB
+              await dbManager.run(`UPDATE monitor_list SET price = ?, pair_data = ? WHERE token_address = ?`, [newPrice, JSON.stringify(pair), m.token_address]);
+              // Update ATH price if needed
+              await dbManager.updateAthPrice(m.token_address, newPrice);
             } catch(e) {}
           }
         }

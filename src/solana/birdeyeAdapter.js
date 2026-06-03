@@ -45,13 +45,14 @@ function getNextBirdeyeKey() {
 }
 
 function getApiKey() {
+  // getNextBirdeyeKey() will rotate the index
   return getNextBirdeyeKey();
 }
 
-function buildHeaders() {
+function buildHeaders(key) {
   return {
     "x-chain": "solana",
-    "X-API-KEY": getApiKey(),
+    "X-API-KEY": key || getApiKey(),
     accept: "application/json",
   };
 }
@@ -122,15 +123,26 @@ async function birdeyeRequest(config, context = "birdeyeRequest") {
   }
 
   let lastError;
+  const keys = getBirdeyeKeys();
+  const maxAttempts = Math.max(MAX_API_ATTEMPTS, keys.length);
 
-  for (let attempt = 1; attempt <= MAX_API_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     await throttleBirdeyeGap();
 
+    // Rotate key for each attempt
+    const currentKey = keys[(currentBirdeyeIndex + attempt - 1) % keys.length];
+
     try {
-      const response = await axios.request({
+      const requestConfig = {
         timeout: 30000,
         ...config,
-      });
+        headers: {
+          ...config.headers,
+          ...buildHeaders(currentKey)
+        }
+      };
+
+      const response = await axios.request(requestConfig);
 
       // Increment Usage on success
       await dbManager.incrementApiUsage('birdeye');
@@ -141,18 +153,18 @@ async function birdeyeRequest(config, context = "birdeyeRequest") {
       const status = error?.response?.status;
       const retryable = isRateLimitError(error);
 
-      if (retryable && attempt < MAX_API_ATTEMPTS) {
-        const waitMs = RETRY_DELAY_MS * attempt;
+      if (retryable && attempt < maxAttempts) {
+        const waitMs = RETRY_DELAY_MS * (attempt <= keys.length ? 0.5 : attempt);
         const label = isComputeUnitLimitError(error) ? "Compute units" : "Rate limit 429";
         console.warn(
-          `[birdeyeAdapter] ${context}: ${label}, percobaan ${attempt}/${MAX_API_ATTEMPTS}. Menunggu ${Math.round(waitMs / 1000)}s...`
+          `[birdeyeAdapter] ${context}: ${label}, percobaan ${attempt}/${maxAttempts}. Merotasi API Key...`
         );
-        await sleep(waitMs);
+        if (waitMs > 0) await sleep(waitMs);
         continue;
       }
 
       if (isComputeUnitLimitError(error)) {
-        pauseBirdeye("Compute units usage limit exceeded");
+        pauseBirdeye("Compute units usage limit exceeded on all keys");
       }
 
       throw error;

@@ -81,6 +81,8 @@ async function savePaperTradingState(payload) {
   }
 
   // Update Bot Stats from payload if present
+  // REMOVED: Rely on dbManager.syncPaperStats('solana') to keep DB as source of truth
+  /*
   if (payload.stats) {
     await dbManager.updateBotStats({
       total_trades: payload.stats.totalTrades,
@@ -93,6 +95,7 @@ async function savePaperTradingState(payload) {
       avg_pnl_sol: payload.stats.avgPnlSol
     });
   }
+  */
 
   // Clean up bulky arrays before saving to generic app_state
   const strippedState = { ...payload };

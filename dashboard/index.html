@@ -57,20 +57,21 @@
             Agent
           </button>
           <button type="button" class="nav-link" data-page="monitor" role="tab" aria-selected="false" aria-controls="page-monitor">
-            <span class="nav-link-icon">◎</span>
+            <span class="nav-link-icon">👁️</span>
             Monitor
           </button>
+          <button type="button" class="nav-link" data-page="track-wallet" role="tab" aria-selected="false" aria-controls="page-track-wallet">
+            <span class="nav-link-icon">💼</span>
+            Track Wallet
+          </button>
           <button type="button" class="nav-link" data-page="solana-paper" role="tab" aria-selected="false" aria-controls="page-solana-paper">
+
             <span class="nav-link-icon">◈</span>
             SOL Paper
           </button>
           <button type="button" class="nav-link" data-page="cex-spike" role="tab" aria-selected="false" aria-controls="page-cex-spike">
             <span class="nav-link-icon">⚡</span>
             CEX Spike
-          </button>
-          <button type="button" class="nav-link" data-page="trading" role="tab" aria-selected="false" aria-controls="page-trading">
-            <span class="nav-link-icon">₿</span>
-            BTC Trade
           </button>
         </div>
 
@@ -351,6 +352,35 @@
         </main>
       </div>
 
+      <!-- Track Wallet -->
+      <div id="page-track-wallet" class="page-view" role="tabpanel" hidden>
+        <header class="page-hero page-hero-track">
+          <div>
+            <p class="eyebrow">Wallet Intelligence · Cross-Chain</p>
+            <h1>Smart Wallet Tracker</h1>
+            <p class="hero-copy">Pantau dompet smart money dari DEX (Solana, Base, BSC) dan CEX (Bybit, Bitget) secara terpusat dengan profil gaya bermain dan performa 7D/30D.</p>
+          </div>
+          <div class="page-hero-badge">
+            <span class="page-badge page-badge-track">Intelligence Alpha</span>
+          </div>
+        </header>
+
+        <main class="grid">
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Watchlist</p>
+                <h2>Tracked Wallets</h2>
+                <p class="panel-subcopy">Dompet diurutkan berdasarkan Profit 7 Hari tertinggi. Profil (Playstyle & Market) dianalisis otomatis.</p>
+              </div>
+              <div class="pill-inline" id="trackedWalletCount">0 Wallets</div>
+            </div>
+            
+            <div class="track-wallet-grid" id="trackedWalletsGrid"></div>
+          </section>
+        </main>
+      </div>
+
       <!-- Solana Paper Trading -->
       <div id="page-solana-paper" class="page-view" role="tabpanel" hidden>
         <header class="page-hero page-hero-paper">
@@ -460,104 +490,6 @@
       </div>
 
       <!-- BTC Futures Trading -->
-      <div id="page-trading" class="page-view" role="tabpanel" hidden>
-        <header class="page-hero page-hero-trading">
-          <div>
-            <p class="eyebrow">Paper Trading · BTC/USDT</p>
-            <h1>BTC Futures Trading</h1>
-            <p class="hero-copy">Cockpit khusus paper trading: harga BTC live, ekuitas spot & futures, posisi terbuka, riwayat trade, dan log engine dalam satu tampilan terfokus.</p>
-          </div>
-          <div class="page-hero-badge">
-            <span class="page-badge page-badge-trading">Paper Mode</span>
-          </div>
-        </header>
-
-        <main class="grid">
-          <section class="panel span-8">
-            <div class="panel-head">
-              <div>
-                <p class="section-kicker">Overview</p>
-                <h2>Capital Snapshot</h2>
-              </div>
-            </div>
-            <div class="metric-grid" id="topMetrics"></div>
-          </section>
-
-          <section class="panel span-4">
-            <div class="panel-head">
-              <div>
-                <p class="section-kicker">Health</p>
-                <h2>Runtime State</h2>
-              </div>
-            </div>
-            <div id="runtimeSummary" class="stack"></div>
-          </section>
-
-          <section class="panel span-6">
-            <div class="panel-head">
-              <div>
-                <p class="section-kicker">Spot</p>
-                <h2>Paper Spot Account</h2>
-              </div>
-            </div>
-            <div class="action-row">
-              <button id="closeSpotButton" class="action-button action-button-spot" type="button" disabled>Close Spot Position</button>
-              <span id="spotActionStatus" class="action-status">No open spot position.</span>
-            </div>
-            <div id="spotSummary" class="stack"></div>
-            <div class="chart-wrap">
-              <svg id="spotCurve" class="curve" viewBox="0 0 640 220" preserveAspectRatio="none"></svg>
-            </div>
-          </section>
-
-          <section class="panel span-6">
-            <div class="panel-head">
-              <div>
-                <p class="section-kicker">Futures</p>
-                <h2>Paper Futures Account</h2>
-              </div>
-            </div>
-            <div class="action-row">
-              <button id="closeFuturesButton" class="action-button action-button-futures" type="button" disabled>Close Futures Position</button>
-              <span id="futuresActionStatus" class="action-status">No open futures position.</span>
-            </div>
-            <div id="futuresSummary" class="stack"></div>
-            <div class="chart-wrap">
-              <svg id="futuresCurve" class="curve" viewBox="0 0 640 220" preserveAspectRatio="none"></svg>
-            </div>
-          </section>
-
-          <section class="panel span-6">
-            <div class="panel-head">
-              <div>
-                <p class="section-kicker">Trades</p>
-                <h2>Recent Spot Activity</h2>
-              </div>
-            </div>
-            <div id="spotTrades" class="trade-list"></div>
-          </section>
-
-          <section class="panel span-6">
-            <div class="panel-head">
-              <div>
-                <p class="section-kicker">Trades</p>
-                <h2>Recent Futures Activity</h2>
-              </div>
-            </div>
-            <div id="futuresTrades" class="trade-list"></div>
-          </section>
-
-          <section class="panel span-12">
-            <div class="panel-head">
-              <div>
-                <p class="section-kicker">Audit</p>
-                <h2>Recent Engine Logs</h2>
-              </div>
-            </div>
-            <div id="recentLogs" class="log-list"></div>
-          </section>
-        </main>
-      </div>
     </div>
 
     <dialog id="manualBuyDialog" class="phoenix-dialog" style="max-width: 400px">

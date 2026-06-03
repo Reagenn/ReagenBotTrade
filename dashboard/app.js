@@ -3,6 +3,7 @@ const dashboardUrl = "/api/dashboard";
 const PAGE_TITLES = {
   phoenix: "Phoenix Scanner v4 · Reagen Console",
   monitor: "Solana Monitor · Reagen Console",
+  "track-wallet": "Smart Wallet Tracker · Reagen Console",
   "solana-paper": "Solana Paper Trading · Reagen Console",
   "cex-spike": "CEX Volume Spike · Reagen Console",
   trading: "BTC Futures Trading · Reagen Console",
@@ -125,6 +126,8 @@ const el = {
   tokenDetailsSmartList: document.getElementById("tokenDetailsSmartList"),
   tokenDetailsWhaleList: document.getElementById("tokenDetailsWhaleList"),
   holderDistributionChart: document.getElementById("holderDistributionChart"),
+  trackedWalletsGrid: document.getElementById("trackedWalletsGrid"),
+  trackedWalletCount: document.getElementById("trackedWalletCount"),
 };
 
 let holderDistributionChartInstance = null;
@@ -305,7 +308,65 @@ function summarizeLedger(ledger) {
   };
 }
 
+function renderTrackedWallets(wallets) {
+  if (!el.trackedWalletsGrid) return;
+  
+  if (!wallets || wallets.length === 0) {
+    el.trackedWalletsGrid.innerHTML = `<div class="trade-meta">Belum ada dompet yang dipantau. Gunakan terminal untuk menambahkan dompet cerdas.</div>`;
+    if (el.trackedWalletCount) el.trackedWalletCount.textContent = "0 Wallets";
+    return;
+  }
+
+  if (el.trackedWalletCount) el.trackedWalletCount.textContent = `${wallets.length} Wallets`;
+
+  el.trackedWalletsGrid.innerHTML = wallets.map(w => {
+    const p7 = Number(w.profit7d || 0);
+    const r7 = Number(w.roi7d || 0);
+    const p30 = Number(w.profit30d || 0);
+    
+    const profitTone = p7 >= 0 ? "good" : "bad";
+    const network = String(w.network || "solana").toLowerCase();
+    
+    // Icon mapping
+    let networkIcon = "◈";
+    if (network === "bsc") networkIcon = "🔶";
+    if (network === "base") networkIcon = "🔵";
+    if (w.type === "CEX") networkIcon = "🏦";
+
+    const tags = Array.isArray(w.tags) ? w.tags : [];
+    const tagHtml = tags.map(t => `<span class="page-badge page-badge-monitor" style="font-size: 0.6rem; opacity: 0.8">${t}</span>`).join("");
+
+    return `
+      <article class="top-performer-card" style="border-left: 3px solid ${p7 >= 0 ? '#4ade80' : '#f87171'}">
+        <div class="top-performer-multiplier" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${r7 >= 0 ? '+' : ''}${r7.toFixed(0)}%</div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
+          <span style="font-size: 1.2rem">${networkIcon}</span>
+          <span class="top-performer-symbol">${w.alias || shortenMint(w.id)}</span>
+        </div>
+        <code class="top-performer-ca" title="${w.id}">${w.id}</code>
+        
+        <div style="display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap">
+          <span class="page-badge page-badge-cex" style="font-size: 0.6rem">${w.type}</span>
+          ${tagHtml}
+        </div>
+
+        <div class="top-performer-stat">
+          <span class="top-performer-stat-label">7D Profit</span>
+          <span class="top-performer-stat-value" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${p7 >= 0 ? '+' : ''}$${formatMoney(p7)}</span>
+        </div>
+        <div class="top-performer-stat">
+          <span class="top-performer-stat-label">30D Profit</span>
+          <span class="top-performer-stat-value">$${formatMoney(p30)}</span>
+        </div>
+        
+        <div class="top-performer-accum">Win Rate: ${Number(w.winRate || 0).toFixed(1)}% · ${w.activity || 'N/A'}</div>
+      </article>
+    `;
+  }).join("");
+}
+
 function renderTopMetrics(spot, futures) {
+  if (!el.topMetrics) return;
   const items = [
     { label: "Spot Cash", value: formatMoney(spot.balance), tone: "" },
     { label: "Spot Realized PnL", value: formatMoney(spot.realizedPnl), tone: (spot.realizedPnl || 0) >= 0 ? "good" : "bad" },
@@ -322,6 +383,7 @@ function renderTopMetrics(spot, futures) {
 }
 
 function renderSummary(target, entries) {
+  if (!target) return;
   target.innerHTML = entries.map((entry) => `
     <article class="summary-card">
       <div>
@@ -334,6 +396,7 @@ function renderSummary(target, entries) {
 }
 
 function renderCurve(svg, snapshots, color) {
+  if (!svg) return;
   if (!snapshots.length) {
     svg.innerHTML = "";
     return;
@@ -363,6 +426,7 @@ function renderCurve(svg, snapshots, color) {
 }
 
 function renderTrades(target, trades, fallbackLabel) {
+  if (!target) return;
   if (!trades.length) {
     target.innerHTML = `<article class="trade-item"><div class="trade-meta">${fallbackLabel}</div></article>`;
     return;
@@ -393,6 +457,7 @@ function renderTrades(target, trades, fallbackLabel) {
 }
 
 function renderLogs(logs) {
+  if (!el.recentLogs) return;
   if (!logs.length) {
     el.recentLogs.innerHTML = `<article class="log-item"><div class="log-meta">No recent logs available.</div></article>`;
     return;
@@ -410,6 +475,7 @@ function renderLogs(logs) {
 }
 
 function renderSignalRows(target, candidatesRaw, emptyMessage, type) {
+  if (!target) return;
   // Global Filter: Remove garbage tickers
   const candidates = (candidatesRaw || []).filter(c => {
     const sym = (c.token?.symbol || "").trim();
@@ -1869,7 +1935,7 @@ function renderCexPaperTrading(cex) {
 }
 
 function switchPage(pageId) {
-  const allowed = ["phoenix", "monitor", "solana-paper", "cex-spike", "trading"];
+  const allowed = ["phoenix", "monitor", "track-wallet", "solana-paper", "cex-spike", "trading"];
   const target = allowed.includes(pageId) ? pageId : "phoenix";
 
   console.log(`[CEX DEBUG] Switching to page: ${target}`);
@@ -1896,24 +1962,28 @@ function switchPage(pageId) {
 }
 
 function renderAccountPanels(spot, futures) {
-  renderSummary(el.spotSummary, [
-    { label: "Cash", value: formatMoney(spot.balance) },
-    { label: "Asset", value: formatNumber(spot.asset || 0, 6) },
-    { label: "Paid Fees", value: formatMoney(spot.paidFees) },
-    { label: "Trade Record", value: `${spot.wins}W / ${spot.losses}L`, badge: `${spot.tradesClosed} closed` },
-  ]);
+  if (el.spotSummary) {
+    renderSummary(el.spotSummary, [
+      { label: "Cash", value: formatMoney(spot.balance) },
+      { label: "Asset", value: formatNumber(spot.asset || 0, 6) },
+      { label: "Paid Fees", value: formatMoney(spot.paidFees) },
+      { label: "Trade Record", value: `${spot.wins}W / ${spot.losses}L`, badge: `${spot.tradesClosed} closed` },
+    ]);
+  }
 
-  renderSummary(el.futuresSummary, [
-    { label: "Cash", value: formatMoney(futures.balance) },
-    { label: "Margin Locked", value: formatMoney(futures.marginLocked) },
-    { label: "Paid Fees", value: formatMoney(futures.paidFees) },
-    { label: "Trade Record", value: `${futures.wins}W / ${futures.losses}L`, badge: `${futures.tradesClosed} closed` },
-  ]);
+  if (el.futuresSummary) {
+    renderSummary(el.futuresSummary, [
+      { label: "Cash", value: formatMoney(futures.balance) },
+      { label: "Margin Locked", value: formatMoney(futures.marginLocked) },
+      { label: "Paid Fees", value: formatMoney(futures.paidFees) },
+      { label: "Trade Record", value: `${futures.wins}W / ${futures.losses}L`, badge: `${futures.tradesClosed} closed` },
+    ]);
+  }
 
-  el.closeSpotButton.disabled = !spot.openPosition;
-  el.closeFuturesButton.disabled = !futures.openPosition;
-  el.spotActionStatus.textContent = describeOpenPosition(spot.openPosition, "spot");
-  el.futuresActionStatus.textContent = describeOpenPosition(futures.openPosition, "futures");
+  if (el.closeSpotButton) el.closeSpotButton.disabled = !spot.openPosition;
+  if (el.closeFuturesButton) el.closeFuturesButton.disabled = !futures.openPosition;
+  if (el.spotActionStatus) el.spotActionStatus.textContent = describeOpenPosition(spot.openPosition, "spot");
+  if (el.futuresActionStatus) el.futuresActionStatus.textContent = describeOpenPosition(futures.openPosition, "futures");
 }
 
 async function fetchCexPaperPayload() {
@@ -1929,7 +1999,7 @@ async function fetchCexPaperPayload() {
 }
 
 async function loadDashboard() {
-  el.generatedAt.textContent = "Refreshing...";
+  if (el.generatedAt) el.generatedAt.textContent = "Refreshing...";
   const dashboardResponse = await fetch(dashboardUrl, { cache: "no-store" });
 
   const payload = await dashboardResponse.json();
@@ -1946,7 +2016,7 @@ async function loadDashboard() {
     el.solanaPaperBalance.textContent = formatNumber(payload.solanaPaperBalance, 2) + " SOL";
   }
 
-  el.generatedAt.textContent = `Updated ${formatTime(payload.generatedAt)}`;
+  if (el.generatedAt) el.generatedAt.textContent = `Updated ${formatTime(payload.generatedAt)}`;
   if (el.dataFreshness) {
     const solanaAt = solanaPayload.generatedAt || payload.generatedAt;
     el.dataFreshness.textContent = `Monitor · ${formatAge(solanaAt)}`;
@@ -1969,6 +2039,7 @@ async function loadDashboard() {
   renderCexPaperTrading(cexPayload);
 
   // Unpack and distribute to renderers
+  renderTrackedWallets(payload.trackedWallets);
   renderPhoenixScanner(solanaPayload);
   renderMorningBriefing(solanaPayload);
   renderTimeframeMonitorList(payload); // Pass root payload
@@ -2137,11 +2208,13 @@ if (el.tokenDetailSelect) {
   });
 }
 
-el.refreshButton.addEventListener("click", () => {
-  loadDashboard().catch((error) => {
-    el.generatedAt.textContent = `Refresh failed: ${error.message}`;
+if (el.refreshButton) {
+  el.refreshButton.addEventListener("click", () => {
+    loadDashboard().catch((error) => {
+      if (el.generatedAt) el.generatedAt.textContent = `Refresh failed: ${error.message}`;
+    });
   });
-});
+}
 
 if (el.phoenixRefreshBtn) {
   el.phoenixRefreshBtn.addEventListener("click", () => {
@@ -2265,6 +2338,7 @@ function resolvePageFromHash() {
   const hash = window.location.hash.replace("#", "").toLowerCase();
   if (hash === "trading") return "trading";
   if (hash === "monitor") return "monitor";
+  if (hash === "track-wallet" || hash === "track") return "track-wallet";
   if (hash === "solana-paper" || hash === "paper") return "solana-paper";
   if (hash === "cex-spike" || hash === "cex") return "cex-spike";
   return "phoenix";
@@ -2276,20 +2350,24 @@ window.addEventListener("hashchange", () => {
 
 switchPage(resolvePageFromHash());
 
-el.closeSpotButton.addEventListener("click", () => {
-  closePosition("spot").catch((error) => {
-    el.spotActionStatus.textContent = error.message;
+if (el.closeSpotButton) {
+  el.closeSpotButton.addEventListener("click", () => {
+    closePosition("spot").catch((error) => {
+      if (el.spotActionStatus) el.spotActionStatus.textContent = error.message;
+    });
   });
-});
+}
 
-el.closeFuturesButton.addEventListener("click", () => {
-  closePosition("futures").catch((error) => {
-    el.futuresActionStatus.textContent = error.message;
+if (el.closeFuturesButton) {
+  el.closeFuturesButton.addEventListener("click", () => {
+    closePosition("futures").catch((error) => {
+      if (el.futuresActionStatus) el.futuresActionStatus.textContent = error.message;
+    });
   });
-});
+}
 
 loadDashboard().catch((error) => {
-  el.generatedAt.textContent = `Initial load failed: ${error.message}`;
+  if (el.generatedAt) el.generatedAt.textContent = `Initial load failed: ${error.message}`;
 });
 
 setInterval(() => {
