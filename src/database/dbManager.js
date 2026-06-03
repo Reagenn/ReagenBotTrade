@@ -108,7 +108,9 @@ async function initDb() {
       insider_count INTEGER,
       price REAL,
       market_cap REAL,
-      timeframe TEXT
+      timeframe TEXT,
+      initial_price REAL,
+      ath_price REAL
     )`);
 
     // Migration for monitor_list
@@ -122,10 +124,10 @@ async function initDb() {
           await run("UPDATE monitor_list SET timeframe = NULL");
         }
       }
-      const required = ['rug_status', 'liq_status', 'pair_data', 'smart_money_count', 'whale_count', 'insider_count', 'price', 'market_cap', 'timeframe'];
+      const required = ['rug_status', 'liq_status', 'pair_data', 'smart_money_count', 'whale_count', 'insider_count', 'price', 'market_cap', 'timeframe', 'initial_price', 'ath_price'];
       for (const col of required) {
         if (!cols.some(c => c.name === col)) {
-          await run(`ALTER TABLE monitor_list ADD COLUMN ${col} ${col.includes('count') || col.includes('price') || col.includes('cap') ? 'REAL' : 'TEXT'}`);
+          await run(`ALTER TABLE monitor_list ADD COLUMN ${col} ${col.includes('count') || col.includes('price') || col.includes('cap') || col === 'ath_price' ? 'REAL' : 'TEXT'}`);
         }
       }
     } catch (e) { console.error("[DB] Monitor migration error:", e.message); }
@@ -152,47 +154,69 @@ async function initDb() {
       id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, current_price REAL, amount_usdt REAL, amount_token REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT
     )`);
     await run(`CREATE TABLE IF NOT EXISTS cex_paper_trades (
-      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, exit_price REAL, amount_usdt REAL, pnl_usd REAL, pnl_percent REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME
+      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, exit_price REAL, amount_usdt REAL, amount_token REAL, pnl_usd REAL, pnl_percent REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME
     )`);
 
     // Tabel Statistik Bot (RECONSTRUCTED)
     await run(`CREATE TABLE IF NOT EXISTS bot_stats (
       id INTEGER PRIMARY KEY,
-      total_trades INTEGER DEFAULT 0,
-      profit_trades INTEGER DEFAULT 0,
-      loss_trades INTEGER DEFAULT 0,
-      win_rate REAL DEFAULT 0,
-      net_pnl_sol REAL DEFAULT 0,
-      net_pnl_usdt REAL DEFAULT 0,
-      total_fees_sol REAL DEFAULT 0,
-      total_invested_sol REAL DEFAULT 0,
-      avg_pnl_sol REAL DEFAULT 0,
+      total_trades INTEGER NOT NULL DEFAULT 0,
+      profit_trades INTEGER NOT NULL DEFAULT 0,
+      loss_trades INTEGER NOT NULL DEFAULT 0,
+      win_rate REAL NOT NULL DEFAULT 0,
+      net_pnl_sol REAL NOT NULL DEFAULT 0,
+      net_pnl_usdt REAL NOT NULL DEFAULT 0,
+      total_fees_sol REAL NOT NULL DEFAULT 0,
+      total_invested_sol REAL NOT NULL DEFAULT 0,
+      avg_pnl_sol REAL NOT NULL DEFAULT 0,
+      active_positions INTEGER NOT NULL DEFAULT 0,
+      max_open_positions INTEGER NOT NULL DEFAULT 12,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
     // Force remove restrictive constraint if it still exists from old schema
     try {
         const createSql = (await query("SELECT sql FROM sqlite_master WHERE name='bot_stats'"))[0].sql;
-        if (createSql.includes("CHECK (id = 1)")) {
-            console.log("[DB] Migrating bot_stats: Removing restrictive ID check...");
+        // Check if all essential columns are NOT NULL
+        const isSafe = createSql.includes("total_fees_sol REAL NOT NULL") && 
+                       createSql.includes("avg_pnl_sol REAL NOT NULL") &&
+                       !createSql.includes("CHECK (id = 1)");
+
+        if (!isSafe) {
+            console.log("[DB] Migrating bot_stats: Enforcing NOT NULL on all columns...");
             await run("ALTER TABLE bot_stats RENAME TO bot_stats_old");
             await run(`CREATE TABLE bot_stats (
                 id INTEGER PRIMARY KEY,
-                total_trades INTEGER DEFAULT 0,
-                profit_trades INTEGER DEFAULT 0,
-                loss_trades INTEGER DEFAULT 0,
-                win_rate REAL DEFAULT 0,
-                net_pnl_sol REAL DEFAULT 0,
-                net_pnl_usdt REAL DEFAULT 0,
-                total_fees_sol REAL DEFAULT 0,
-                total_invested_sol REAL DEFAULT 0,
-                avg_pnl_sol REAL DEFAULT 0,
+                total_trades INTEGER NOT NULL DEFAULT 0,
+                profit_trades INTEGER NOT NULL DEFAULT 0,
+                loss_trades INTEGER NOT NULL DEFAULT 0,
+                win_rate REAL NOT NULL DEFAULT 0,
+                net_pnl_sol REAL NOT NULL DEFAULT 0,
+                net_pnl_usdt REAL NOT NULL DEFAULT 0,
+                total_fees_sol REAL NOT NULL DEFAULT 0,
+                total_invested_sol REAL NOT NULL DEFAULT 0,
+                avg_pnl_sol REAL NOT NULL DEFAULT 0,
+                active_positions INTEGER NOT NULL DEFAULT 0,
+                max_open_positions INTEGER NOT NULL DEFAULT 12,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )`);
-            await run("INSERT INTO bot_stats SELECT * FROM bot_stats_old");
+            
+            // Map columns explicitly to avoid issues with different column counts and NULLs
+            const cols = (await query("PRAGMA table_info(bot_stats_old)")).map(c => c.name);
+            const targetCols = ['id', 'total_trades', 'profit_trades', 'loss_trades', 'win_rate', 'net_pnl_sol', 'net_pnl_usdt', 'total_fees_sol', 'total_invested_sol', 'avg_pnl_sol', 'active_positions', 'max_open_positions'];
+            const commonCols = targetCols.filter(c => cols.includes(c));
+            
+            if (commonCols.length > 0) {
+                const selectPart = commonCols.map(c => {
+                    if (c === 'id') return c;
+                    if (c === 'max_open_positions') return `COALESCE(${c}, 12)`;
+                    return `COALESCE(${c}, 0)`;
+                }).join(', ');
+                await run(`INSERT INTO bot_stats (${commonCols.join(', ')}) SELECT ${selectPart} FROM bot_stats_old`);
+            }
             await run("DROP TABLE bot_stats_old");
         }
-    } catch(e) {}
+    } catch(e) { console.error("[DB] bot_stats migration error:", e.message); }
 
     // Tabel Bot Config (RECONSTRUCTED)
     await run(`CREATE TABLE IF NOT EXISTS bot_config (
@@ -243,12 +267,30 @@ async function initDb() {
       wallet_address TEXT PRIMARY KEY, winrate REAL, total_pnl REAL, trade_count INTEGER, last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // API Quota
+    // Tabel API Quota
     await run(`CREATE TABLE IF NOT EXISTS api_quota_tracker (
       date TEXT PRIMARY KEY, helius_used INTEGER DEFAULT 0, birdeye_used INTEGER DEFAULT 0
     )`);
 
+    // Tabel Tracked Wallets
+    await run(`CREATE TABLE IF NOT EXISTS tracked_wallets (
+      wallet_id TEXT PRIMARY KEY,
+      type TEXT, -- DEX / CEX
+      network TEXT, -- solana, base, bsc, bybit, bitget
+      alias TEXT,
+      tags TEXT, -- JSON
+      profit_7d REAL DEFAULT 0,
+      roi_7d REAL DEFAULT 0,
+      profit_30d REAL DEFAULT 0,
+      roi_30d REAL DEFAULT 0,
+      avg_invested REAL DEFAULT 0,
+      win_rate REAL DEFAULT 0,
+      activity TEXT,
+      last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     await run(`INSERT OR IGNORE INTO bot_stats (id) VALUES (1)`);
+
     await run(`INSERT OR IGNORE INTO bot_stats (id) VALUES (2)`);
     await run(`INSERT OR IGNORE INTO bot_config (id, buy_triggers) VALUES (1, '["fire", "alpha"]')`);
 
@@ -306,8 +348,8 @@ const dbManager = {
       await dbManager.syncPaperStats('solana');
     } else {
       const pnlUsdt = (pos.amount_usdt * pnlPct) / 100;
-      await run(`INSERT INTO cex_paper_trades (id, symbol, entry_price, exit_price, amount_usdt, pnl_usd, pnl_percent, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [pos.id, pos.symbol, pos.entry_price, price, pos.amount_usdt, pnlUsdt, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, now]);
+      await run(`INSERT INTO cex_paper_trades (id, symbol, entry_price, exit_price, amount_usdt, amount_token, pnl_usd, pnl_percent, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pos.id, pos.symbol, pos.entry_price, price, pos.amount_usdt, pos.amount_token, pnlUsdt, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, now]);
       
       const current = await dbManager.getCexBalance();
       await dbManager.updateCexBalance(current + pos.amount_usdt + pnlUsdt);
@@ -334,17 +376,28 @@ const dbManager = {
       const winRate = (profit / total) * 100;
       const netPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
       const totalInvested = trades.reduce((sum, t) => sum + (t.amount || 0), 0);
-      const avgPnl = netPnl / total;
+      const avgPnl = total > 0 ? netPnl / total : 0;
 
-      const sql = type === 'solana' 
-        ? `UPDATE bot_stats SET total_trades = ?, profit_trades = ?, loss_trades = ?, win_rate = ?, net_pnl_sol = ?, total_invested_sol = ?, avg_pnl_sol = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-        : `UPDATE bot_stats SET total_trades = ?, profit_trades = ?, loss_trades = ?, win_rate = ?, net_pnl_usdt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-
-      const params = type === 'solana'
-        ? [total, profit, loss, winRate, netPnl, totalInvested, avgPnl, id]
-        : [total, profit, loss, winRate, netPnl, id];
-
-      await run(sql, params);
+      if (type === 'solana') {
+        await dbManager.updateBotStats({
+          total_trades: total,
+          profit_trades: profit,
+          loss_trades: loss,
+          win_rate: winRate,
+          net_pnl_sol: netPnl,
+          total_invested_sol: totalInvested,
+          avg_pnl_sol: avgPnl
+        }, 1);
+      } else {
+        await dbManager.updateBotStats({
+          total_trades: total,
+          profit_trades: profit,
+          loss_trades: loss,
+          win_rate: winRate,
+          net_pnl_usdt: netPnl
+        }, 2);
+      }
+      
       console.log(`[DB] Stats synced for ${type.toUpperCase()}: ${profit}W / ${loss}L (${winRate.toFixed(1)}%)`);
     } catch (err) {
       console.error(`[DB] Sync stats error (${type}):`, err.message);
@@ -366,8 +419,30 @@ const dbManager = {
   getCexStats: async () => { return (await query(`SELECT * FROM bot_stats WHERE id = 2`))[0] || null; },
   getBotStats: async () => { return dbManager.getPaperStats(); },
   updateBotStats: async (s, id = 1) => {
-    const sql = `UPDATE bot_stats SET total_trades = ?, profit_trades = ?, loss_trades = ?, win_rate = ?, net_pnl_sol = ?, net_pnl_usdt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-    return run(sql, [s.total_trades, s.profit_trades, s.loss_trades, s.win_rate, s.net_pnl_sol || 0, s.net_pnl_usdt || 0, id]);
+    const fields = [];
+    const params = [];
+    
+    const isValid = (val) => val !== undefined && val !== null && !Number.isNaN(val);
+    
+    if (isValid(s.total_trades)) { fields.push("total_trades = ?"); params.push(s.total_trades); }
+    if (isValid(s.profit_trades)) { fields.push("profit_trades = ?"); params.push(s.profit_trades); }
+    if (isValid(s.loss_trades)) { fields.push("loss_trades = ?"); params.push(s.loss_trades); }
+    if (isValid(s.win_rate)) { fields.push("win_rate = ?"); params.push(s.win_rate); }
+    if (isValid(s.net_pnl_sol)) { fields.push("net_pnl_sol = ?"); params.push(s.net_pnl_sol); }
+    if (isValid(s.net_pnl_usdt)) { fields.push("net_pnl_usdt = ?"); params.push(s.net_pnl_usdt); }
+    if (isValid(s.total_fees_sol)) { fields.push("total_fees_sol = ?"); params.push(s.total_fees_sol); }
+    if (isValid(s.total_invested_sol)) { fields.push("total_invested_sol = ?"); params.push(s.total_invested_sol); }
+    if (isValid(s.avg_pnl_sol)) { fields.push("avg_pnl_sol = ?"); params.push(s.avg_pnl_sol); }
+    if (isValid(s.active_positions)) { fields.push("active_positions = ?"); params.push(s.active_positions); }
+    if (isValid(s.max_open_positions)) { fields.push("max_open_positions = ?"); params.push(s.max_open_positions); }
+    
+    if (fields.length === 0) return { changes: 0 };
+    
+    fields.push("updated_at = CURRENT_TIMESTAMP");
+    const sql = `UPDATE bot_stats SET ${fields.join(", ")} WHERE id = ?`;
+    params.push(id);
+    
+    return run(sql, params);
   },
   getBotConfig: async () => {
     const c = (await query(`SELECT * FROM bot_config WHERE id = 1`))[0];
@@ -384,26 +459,88 @@ const dbManager = {
     try {
       const mint = (d.token_address || d.tokenAddress || "").trim();
       if (!mint) return { error: "missing CA", isNew: false };
-      const existing = await query(`SELECT discovery_tier FROM monitor_list WHERE token_address = ?`, [mint]);
+      const existing = await query(`SELECT initial_price, ath_price, discovery_tier FROM monitor_list WHERE token_address = ?`, [mint]);
       const isNew = !existing?.length;
       const now = new Date();
       const accum = `Akumulasi ${now.toLocaleDateString('id-ID')} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
-      const sql = `INSERT OR REPLACE INTO monitor_list (token_address, symbol, added_at, status, holders_data, smart_money_data, whale_data, pair_data, discovery_tier, score, strategy_status, rug_status, liq_status, smart_money_count, whale_count, insider_count, price, market_cap, timeframe) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      const res = await run(sql, [mint, (d.symbol || "?").toUpperCase(), d.added_at || now.toISOString(), d.status || "DISCOVERY", JSON.stringify(d.holders_data), JSON.stringify(d.smart_money_data), JSON.stringify(d.whale_data), JSON.stringify(d.pair_data), d.discovery_tier || "NEW", d.score || 0, d.strategy_status || d.status || "WATCHING", d.rug_status || "PENDING", d.liq_status || "PENDING", d.smart_money_count || 0, d.whale_count || 0, d.insider_count || 0, parseFloat(d.price || 0), parseFloat(d.market_cap || 0), d.timeframe || accum]);
+      
+      const currentPrice = parseFloat(d.price || 0);
+      const initialPrice = isNew ? currentPrice : (existing[0].initial_price || currentPrice);
+      const athPrice = isNew ? currentPrice : Math.max(existing[0].ath_price || 0, currentPrice);
+
+      const sql = `INSERT OR REPLACE INTO monitor_list (token_address, symbol, added_at, status, holders_data, smart_money_data, whale_data, pair_data, discovery_tier, score, strategy_status, rug_status, liq_status, smart_money_count, whale_count, insider_count, price, market_cap, timeframe, initial_price, ath_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      const res = await run(sql, [mint, (d.symbol || "?").toUpperCase(), d.added_at || now.toISOString(), d.status || "DISCOVERY", JSON.stringify(d.holders_data), JSON.stringify(d.smart_money_data), JSON.stringify(d.whale_data), JSON.stringify(d.pair_data), d.discovery_tier || "NEW", d.score || 0, d.strategy_status || d.status || "WATCHING", d.rug_status || "PENDING", d.liq_status || "PENDING", d.smart_money_count || 0, d.whale_count || 0, d.insider_count || 0, currentPrice, parseFloat(d.market_cap || 0), d.timeframe || accum, initialPrice, athPrice]);
       return { ...res, isNew, oldData: isNew ? null : existing[0] };
     } catch (error) { return { error: error.message, isNew: false }; }
   },
   getMonitorList: async (limit = 100) => { return query(`SELECT m.* FROM monitor_list m LEFT JOIN blacklisted_tokens b ON m.token_address = b.token_address WHERE b.token_address IS NULL ORDER BY m.added_at DESC LIMIT ?`, [limit]); },
   getMonitoredMints: async () => { return (await query(`SELECT token_address FROM monitor_list`)).map(r => r.token_address); },
-  removeDeadCoins: async () => { return run(`DELETE FROM monitor_list WHERE symbol IN ('?', '-', '', NULL) OR price = 0 OR market_cap = 0 OR strategy_status = 'DEAD' OR liq_status = 'WEAK' OR rug_status IN ('HIGH', 'DANGER') OR datetime(added_at) < datetime('now', '-1 day')`); },
+  getTopPerformers: async (limit = 10) => {
+    return query(`SELECT *, (ath_price / initial_price) as multiplier FROM monitor_list WHERE initial_price > 0 AND ath_price > 0 ORDER BY multiplier DESC LIMIT ?`, [limit]);
+  },
+  updateAthPrice: async (mint, currentPrice) => {
+    return run(`UPDATE monitor_list SET ath_price = CASE WHEN ath_price < ? THEN ? ELSE ath_price END WHERE token_address = ?`, [currentPrice, currentPrice, mint]);
+  },
+  removeDeadCoins: async () => {
+    // Fitur ini dinonaktifkan atas permintaan user (Keep all tokens)
+    return { changes: 0 };
+  },
 
   // Blacklist
+  clearBlacklist: async () => {
+    return run(`DELETE FROM blacklisted_tokens`);
+  },
   isBlacklisted: async (mint) => { return (await query(`SELECT 1 FROM blacklisted_tokens WHERE token_address = ?`, [mint])).length > 0; },
   getBlacklistedMints: async () => { return (await query(`SELECT token_address FROM blacklisted_tokens`)).map(r => r.token_address); },
   blacklistToken: async (mint, symbol, reason) => {
     await run(`INSERT OR REPLACE INTO blacklisted_tokens (token_address, symbol, reason) VALUES (?, ?, ?)`, [mint, symbol, reason]);
     await run(`DELETE FROM monitor_list WHERE token_address = ?`, [mint]);
     return { success: true };
+  },
+
+  // Smart Wallets
+  addOrUpdateSmartWallet: async (w) => {
+    const addr = w.wallet_address || w.address;
+    if (!addr) return;
+    return run(`INSERT OR REPLACE INTO smart_wallets (wallet_address, winrate, total_pnl, trade_count, last_updated) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`, 
+      [addr, w.winrate || w.winRate || 0, w.total_pnl || w.pnl || 0, w.trade_count || w.trades || 0]);
+  },
+
+  // Watchlist & Helper
+  isCoinInMonitorList: async (mint) => {
+    const rows = await query(`SELECT 1 FROM monitor_list WHERE token_address = ?`, [mint]);
+    return rows.length > 0;
+  },
+  getWatchlist: async () => {
+    return (await dbManager.getState("solana_watchlist")) || { tokens: [], smartWallets: [] };
+  },
+  saveWatchlist: async (data) => {
+    return dbManager.saveState("solana_watchlist", data);
+  },
+
+  // Tracked Wallets
+  addTrackedWallet: async (w) => {
+    const sql = `INSERT OR REPLACE INTO tracked_wallets (wallet_id, type, network, alias, tags, profit_7d, roi_7d, profit_30d, roi_30d, avg_invested, win_rate, activity, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+    return run(sql, [w.wallet_id || w.walletId, w.type, w.network, w.alias, JSON.stringify(w.tags || []), w.profit_7d || 0, w.roi_7d || 0, w.profit_30d || 0, w.roi_30d || 0, w.avg_invested || 0, w.win_rate || 0, w.activity]);
+  },
+  getTrackedWallets: async () => {
+    return query(`SELECT * FROM tracked_wallets ORDER BY profit_7d DESC`);
+  },
+
+  // Compatibility Aliases & Helpers
+  getCexPositions: async () => dbManager.getActivePositions('cex'),
+  getPaperPositions: async () => dbManager.getActivePositions('solana'),
+  clearPaperPositions: async () => {
+    await run(`DELETE FROM solana_paper_positions`);
+    return run(`DELETE FROM cex_paper_positions`);
+  },
+  savePaperPosition: async (pos) => dbManager.saveOpenPosition('solana', pos),
+  savePaperTrade: async (trade) => {
+    const now = new Date().toISOString();
+    const res = await run(`INSERT INTO solana_paper_trades (id, token_address, symbol, entry_price, exit_price, amount_sol, pnl_sol, pnl_pct, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [trade.id || `T-${Date.now()}`, trade.token_address || trade.tokenAddress, trade.symbol, trade.entry_price || trade.entryPrice, trade.exit_price || trade.exitPrice, trade.amount_sol || trade.amountSol, trade.pnl_sol || trade.pnlSol, trade.pnl_pct || trade.pnlPct, trade.result, trade.trigger_type || trade.triggerType, trade.opened_at || trade.openedAt, trade.closed_at || trade.closedAt || now]);
+    await dbManager.syncPaperStats('solana');
+    return res;
   },
 
   // Others
