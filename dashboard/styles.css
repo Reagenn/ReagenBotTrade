@@ -2525,39 +2525,68 @@ h2 {
 
 @media (max-width: 960px) {
   .top-nav {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    gap: 1rem;
+    position: relative;
+    top: 0;
+    margin-bottom: 1.5rem;
   }
 
   .nav-brand {
-    min-width: 0;
+    width: 100%;
+    justify-content: center;
   }
 
   .nav-links {
+    width: 100%;
     justify-content: flex-start;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0.4rem;
+    border-radius: 1rem;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
   }
 
   .nav-actions {
     width: 100%;
-    min-width: 0;
-    justify-content: space-between;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  
+  .status-pill, .balance-badge {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
   }
 }
 
 @media (max-width: 720px) {
   .shell {
     width: min(100vw - 1rem, 100%);
-    padding-top: 1rem;
+    padding-top: 0.5rem;
   }
 
   .page-hero {
     flex-direction: column;
     align-items: flex-start;
+    padding: 1.25rem;
+    border-radius: 1.5rem;
+  }
+  
+  .page-hero h1 {
+    font-size: 1.5rem;
   }
 
   .nav-link {
-    flex: 1 1 auto;
-    justify-content: center;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.82rem;
+    flex: 0 0 auto;
   }
 
   .metric-grid {
