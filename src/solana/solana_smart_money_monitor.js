@@ -387,6 +387,19 @@ async function runMonitorCycle() {
              // Save new smart money wallets to global database
              for (const sw of smartWallets) {
                await dbManager.addOrUpdateSmartWallet(sw);
+               
+               // Tambahkan juga ke tracked_wallets agar tampil di Dashboard/Terminal
+               await dbManager.addTrackedWallet({
+                 walletId: sw.address,
+                 type: "DEX",
+                 network: "solana",
+                 alias: `Top Trader ${candidate.token.symbol}`,
+                 tags: ["Smart Money", "Top Trader", "GMGN"],
+                 profit_7d: sw.total_pnl || 0,
+                 win_rate: sw.winrate || 0,
+                 activity: `Found via ${candidate.token.symbol}`
+               });
+               console.log(`[TRACKER] ✅ Sukses menambahkan wallet ${sw.address.slice(0, 8)}... ke tracked wallets (Top Trader ${candidate.token.symbol})`);
              }
            }
         }
