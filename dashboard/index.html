@@ -492,6 +492,21 @@
       <!-- BTC Futures Trading -->
     </div>
 
+    <dialog id="blacklistDialog" class="phoenix-dialog" style="max-width: 420px; border-color: rgba(248, 113, 113, 0.4)">
+      <div style="text-align: center; padding: 1rem 0">
+        <div style="font-size: 3rem; margin-bottom: 1rem">🚫</div>
+        <h2 style="margin-bottom: 0.75rem; font-size: 1.4rem; color: #fff">Blacklist <span id="blacklistSymbolDisplay"></span>?</h2>
+        <p style="color: #94b2cf; font-size: 0.95rem; line-height: 1.5; margin-bottom: 2rem">
+          Token <strong id="blacklistMintDisplay" style="color: #f87171; font-family: var(--mono); font-size: 0.8rem"></strong> akan diblokir secara permanen dari dashboard. Anda tidak akan melihat koin ini lagi.
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
+          <button type="button" class="phoenix-ghost-btn" onclick="document.getElementById('blacklistDialog').close()" style="width: 100%">Batal</button>
+          <button type="button" id="confirmBlacklistBtn" class="phoenix-ghost-btn" style="width: 100%; background: #f87171; color: #fff; border-color: #f87171; font-weight: 700">Ya, Blacklist!</button>
+        </div>
+      </div>
+    </dialog>
+
     <dialog id="manualBuyDialog" class="phoenix-dialog" style="max-width: 400px">
       <form method="dialog" id="manualBuyForm">
         <h2 style="margin-bottom: 0.5rem; font-size: 1.2rem; color: #fff">🚀 Paper Buy <span id="manualBuySymbol"></span></h2>

@@ -21,18 +21,29 @@ let phoenixActiveFilter = "ALL";
 
 // Basic UI components
 window.ui = {
-  toast: (message) => {
-    // Simple toast replacement
+  toast: (message, type = "neutral") => {
+    // Advanced toast with types
     const toast = document.createElement("div");
-    toast.className = "ui-toast";
-    toast.textContent = message;
+    toast.className = `ui-toast ui-toast-${type}`;
+    
+    let icon = "🔔";
+    if (type === "success") icon = "✅";
+    if (type === "error") icon = "🚨";
+    if (type === "warning") icon = "⚠️";
+    if (type === "blacklist") icon = "🚫";
+
+    toast.innerHTML = `
+      <span class="ui-toast-icon">${icon}</span>
+      <span class="ui-toast-msg">${message}</span>
+    `;
+    
     document.body.appendChild(toast);
     setTimeout(() => {
       toast.classList.add("is-visible");
       setTimeout(() => {
         toast.classList.remove("is-visible");
         setTimeout(() => toast.remove(), 300);
-      }, 3000);
+      }, 4000); // Longer duration for better readability
     }, 10);
   }
 };
@@ -519,20 +530,27 @@ function renderSignalRows(target, candidatesRaw, emptyMessage, type) {
     const pairAge = formatHours(candidate.pair?.pairAgeHours);
     const mustBuy = candidate.signals?.mustBuy?.value;
     
-    const waktuAkumulasi = candidate.signals?.accumulationHourWIB || (candidate.added_at 
-      ? new Date(candidate.added_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) + ' WIB' 
+    const waktuAkumulasi = candidate.signals?.accumulationHourWIB || (candidate.added_at
+      ? new Date(candidate.added_at).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) + ' WIB'
       : "—");
+
+    const logoUrl = pair.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${candidate.token?.mint || ""}.png`;
 
     return `
       <article class="signal-row">
-        <div class="signal-col">
-          <div class="trade-top">
-            <span class="trade-side ${tone}">#${index + 1} ${candidate.status}</span>
-            <span class="trade-meta">${formatTime(candidate.generatedAt)}</span>
-          </div>
-          <div class="signal-value">${candidate.token?.symbol || "-"} <span class="grade-badge grade-${grade.toLowerCase()}">${grade}</span></div>
-          <div class="signal-subvalue mono">${candidate.token?.mint || ""}</div>
-        </div>
+       <div class="signal-col">
+         <div class="trade-top">
+           <span class="trade-side ${tone}">#${index + 1} ${candidate.status}</span>
+           <span class="trade-meta">${formatTime(candidate.generatedAt)}</span>
+         </div>
+         <div class="signal-value" style="display: flex; align-items: center; gap: 0.5rem;">
+           <img src="${logoUrl}" alt="${candidate.token?.symbol || ""}" style="width: 1.5rem; height: 1.5rem; border-radius: 50%;" onerror="this.src='https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'; this.onerror=null;">
+           ${candidate.token?.symbol || "-"} 
+           <span class="grade-badge grade-${grade.toLowerCase()}">${grade}</span>
+         </div>
+         <div class="signal-subvalue mono">${candidate.token?.mint || ""}</div>
+       </div>
+
         <div class="signal-col">
           <div class="signal-kicker">${type === "whale" ? "Whales" : "Smart Wallets"}</div>
           <div class="signal-value">${walletCount}</div>
@@ -554,6 +572,7 @@ function renderSignalRows(target, candidatesRaw, emptyMessage, type) {
             ${mustBuy ? '<span class="pill-inline pill-inline-hot">WAJIB BELI</span>' : ""}
             <button class="copy-button" data-copy="${candidate.token?.mint || ""}">Copy CA</button>
             <a class="pill-inline" href="${pair.url || `https://dexscreener.com/solana/${candidate.token?.mint}`}" target="_blank" rel="noreferrer">DEX</a>
+            <button type="button" class="btn-blacklist" style="width: 1.5rem; height: 1.5rem; font-size: 0.65rem;" data-blacklist-mint="${candidate.token?.mint || ""}" data-blacklist-symbol="${candidate.token?.symbol || "-"}" title="Blacklist Token">✕</button>
           </div>
           <div class="signal-subvalue">${accumulation} | ${waktuAkumulasi} | Rug ${rugRisk} | Age ${pairAge} | Liq ${liquiditySafety}</div>
         </div>
@@ -712,10 +731,12 @@ function renderPhoenixScanner(input) {
       const isFire = tier === "FIRE";
       const winRate = Number(card.monitorWinRate ?? card.metrics?.winRate ?? 0);
       const winTone = winRate >= 65 ? "good" : winRate >= 45 ? "warn" : "neutral";
+      const logoUrl = pair.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${card.ca || ""}.png`;
 
       return `
         <article class="phoenix-card phoenix-card-${tier.toLowerCase()}${isFire ? " phoenix-card-highlight" : ""}${card.persisted ? " phoenix-card-archived" : ""}">
           <header class="phoenix-card-head">
+            <img class="phoenix-token-icon" src="${logoUrl}" alt="${card.symbol}" onerror="this.src='https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'; this.onerror=null;">
             <div class="phoenix-card-ident">
               <div class="phoenix-symbol-row">
                 <span class="phoenix-symbol">${card.symbol || "-"}</span>
@@ -739,6 +760,7 @@ function renderPhoenixScanner(input) {
             <span class="phoenix-pill phoenix-pill-episode">Episode</span>
             ${card.dexUrl ? `<a class="phoenix-pill phoenix-pill-link" href="${card.dexUrl}" target="_blank" rel="noreferrer">DEX</a>` : ""}
             <button type="button" class="phoenix-pill btn-token-details" data-token-details="${card.ca || ""}">Details</button>
+            <button type="button" class="btn-blacklist" style="width: 1.5rem; height: 1.5rem; font-size: 0.65rem;" data-blacklist-mint="${card.ca || ""}" data-blacklist-symbol="${card.symbol || "-"}" title="Blacklist Token">✕</button>
           </div>
 
           <div class="phoenix-spark-wrap">
@@ -870,12 +892,14 @@ function renderBriefingCards(target, itemsRaw, emptyMessage, tier = "watch") {
 
     // Task: Link to correct DexScreener template
     const dexUrl = pair.url || `https://dexscreener.com/solana/${mint}`;
+    const logoUrl = pair.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${mint}.png`;
 
     return `
       <article class="briefing-card briefing-card-${tierKey}${isMomentum ? " briefing-card-momentum" : ""}${isLive ? " briefing-card-has-live" : ""}${candidate.persisted ? " briefing-card-archived" : ""}" data-briefing-mint="${mint}">
         <div class="briefing-card-top">
           <div class="briefing-card-ident">
             <div class="briefing-card-symbol-row">
+              <img class="briefing-token-icon" src="${logoUrl}" alt="${candidate.token?.symbol || ""}" onerror="this.src='https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'; this.onerror=null;">
               <span class="briefing-card-symbol">${candidate.token?.symbol || "-"}</span>
               <span class="grade-badge grade-${grade}">${candidate.tier?.grade || "B"}</span>
               ${isMomentum ? '<span class="briefing-momentum-badge">Momentum</span>' : ""}
@@ -929,6 +953,7 @@ function renderBriefingCards(target, itemsRaw, emptyMessage, tier = "watch") {
             <button type="button" class="btn-token-details" data-token-details="${mint}">Token Details</button>
             <button type="button" class="copy-button" data-copy="${mint}">Copy CA</button>
             <a class="btn-dex" href="${dexUrl}" target="_blank" rel="noreferrer">DexScreener ↗</a>
+            <button type="button" class="btn-blacklist" data-blacklist-mint="${mint}" data-blacklist-symbol="${candidate.token?.symbol || "-"}" title="Blacklist Token">✕</button>
           </div>
         </footer>
       </article>
@@ -1251,11 +1276,16 @@ function renderTimeframeMonitorList(payload) {
           const tfBadge = isDiscovery 
             ? '<span class="timeframe-tag timeframe-tag-new">NEW</span>' 
             : (metrics.persisted ? '<span class="timeframe-tag">arsip</span>' : "");
+          
+          const logoUrl = candidate.pair?.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${candidate.token?.mint || ""}.png`;
 
           return `
             <div class="timeframe-row ${isDiscovery ? 'timeframe-row-discovery' : ''}">
               <div class="timeframe-row-main">
-                <strong>${candidate.token?.symbol || "-"}</strong>
+                <div class="timeframe-token-ident">
+                  <img class="timeframe-token-icon" src="${logoUrl}" alt="${candidate.token?.symbol || ""}" onerror="this.src='https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'; this.onerror=null;">
+                  <strong>${candidate.token?.symbol || "-"}</strong>
+                </div>
                 <span class="timeframe-win ${winTone}">${formatNumber(winRate, 1)}% WR</span>
               </div>
               <div class="timeframe-row-meta">
@@ -1265,7 +1295,11 @@ function renderTimeframeMonitorList(payload) {
                 ${candidate.insider_count > 0 ? `<span class="tag-insider-xs">Ins ${candidate.insider_count}</span>` : ""}
                 ${tfBadge}
               </div>
-              <button type="button" class="btn-token-details btn-token-details-sm" data-token-details="${candidate.token?.mint || ""}">Details</button>
+              <div class="timeframe-row-actions" style="display: flex; gap: 0.4rem; align-items: center; margin-top: 0.45rem;">
+                <button type="button" class="btn-token-details btn-token-details-sm" data-token-details="${candidate.token?.mint || ""}">Details</button>
+                <a class="btn-dex" style="padding: 0.2rem 0.5rem; font-size: 0.68rem;" href="https://dexscreener.com/solana/${candidate.token?.mint || ""}" target="_blank" rel="noreferrer">Dex ↗</a>
+                <button type="button" class="btn-blacklist" style="width: 1.5rem; height: 1.5rem; font-size: 0.65rem;" data-blacklist-mint="${candidate.token?.mint || ""}" data-blacklist-symbol="${candidate.token?.symbol || "-"}" title="Blacklist Token">✕</button>
+              </div>
             </div>
           `;
         })
@@ -2068,6 +2102,17 @@ function attachTokenDetailsHandlers() {
   });
 }
 
+async function postBlacklistToken(body) {
+  const response = await fetch("/api/blacklist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (response.ok) return payload;
+  throw new Error(payload.error || "Gagal blacklist token");
+}
+
 async function postClosePaperPosition(body) {
   const response = await fetch("/api/close-position", {
     method: "POST",
@@ -2133,6 +2178,55 @@ async function closeSolanaPaperPosition(button) {
     button.disabled = false;
     button.textContent = originalLabel;
   }
+}
+
+async function blacklistToken(button) {
+  const mint = button.getAttribute("data-blacklist-mint");
+  const symbol = button.getAttribute("data-blacklist-symbol") || "UNKNOWN";
+  
+  if (!mint) return;
+  
+  const dialog = document.getElementById("blacklistDialog");
+  const symbolDisplay = document.getElementById("blacklistSymbolDisplay");
+  const mintDisplay = document.getElementById("blacklistMintDisplay");
+  const confirmBtn = document.getElementById("confirmBlacklistBtn");
+
+  symbolDisplay.textContent = symbol;
+  mintDisplay.textContent = mint;
+  
+  dialog.showModal();
+
+  // Handle confirmation
+  confirmBtn.onclick = async () => {
+    dialog.close();
+    
+    const originalContent = button.innerHTML;
+    button.disabled = true;
+    button.textContent = "...";
+
+    try {
+      await postBlacklistToken({ mint, symbol, reason: "Manual Blacklist from Dashboard" });
+      ui.toast(`${symbol} telah diblokir selamanya.`, "blacklist");
+      
+      // Feedback visual instan
+      const card = button.closest(".briefing-card") || button.closest(".timeframe-row") || button.closest(".phoenix-card") || button.closest(".signal-row");
+      if (card) {
+        card.style.transition = "all 0.6s cubic-bezier(0.4, 0, 0.2, 1)";
+        card.style.opacity = "0";
+        card.style.transform = "translateX(50px) scale(0.9)";
+        card.style.pointerEvents = "none";
+        setTimeout(() => card.remove(), 600);
+      }
+      
+      // Refresh dashboard setelah delay singkat
+      setTimeout(loadDashboard, 2000);
+    } catch (err) {
+      console.error("[BLACKLIST ERROR]", err);
+      ui.toast("Gagal: " + err.message, "error");
+      button.disabled = false;
+      button.innerHTML = originalContent;
+    }
+  };
 }
 
 async function closeCexPaperPosition(button) {
@@ -2288,6 +2382,12 @@ document.addEventListener("click", (event) => {
   const cexCloseBtn = event.target.closest("[data-close-cex-paper]");
   if (cexCloseBtn) {
     closeCexPaperPosition(cexCloseBtn);
+    return;
+  }
+
+  const blacklistBtn = event.target.closest("[data-blacklist-mint]");
+  if (blacklistBtn) {
+    blacklistToken(blacklistBtn);
     return;
   }
 

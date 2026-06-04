@@ -751,6 +751,21 @@ async function handleRequest(req, res) {
     } catch(e) { return sendJson(res, 500, { error: e.message }); }
   }
 
+  if (pathname === "/api/blacklist" && method === "POST") {
+    try {
+      const body = await readRequestBody(req);
+      const { mint, symbol, reason } = body;
+      if (!mint) return sendJson(res, 400, { error: "Mint address required" });
+      
+      await dbManager.blacklistToken(mint, symbol || "UNKNOWN", reason || "Manual Blacklist from Dashboard");
+      console.log(`[DASHBOARD] Token ${symbol} (${mint}) blacklisted manually.`);
+      return sendJson(res, 200, { success: true });
+    } catch(e) { 
+      console.error("[BACKEND ERROR] /api/blacklist gagal:", e.message);
+      return sendJson(res, 500, { error: e.message }); 
+    }
+  }
+
   // STATIC ASSETS
   if (pathname === "/" || pathname === "/index.html") return sendFile(res, path.join(DASHBOARD_DIR, "index.html"), "text/html");
   if (pathname === "/styles.css") return sendFile(res, path.join(DASHBOARD_DIR, "styles.css"), "text/css");

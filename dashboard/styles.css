@@ -3,24 +3,36 @@
   bottom: 2rem;
   right: 2rem;
   background: var(--panel-strong);
-  color: var(--accent);
-  padding: 0.75rem 1.25rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--accent);
-  font-size: 0.9rem;
+  color: var(--text);
+  padding: 0.85rem 1.25rem;
+  border-radius: 1rem;
+  border: 1px solid var(--line-strong);
+  font-size: 0.95rem;
   font-weight: 600;
-  box-shadow: var(--shadow);
-  transform: translateY(1rem);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  transform: translateY(1.5rem);
   opacity: 0;
-  transition: all 0.3s ease;
-  z-index: 9999;
-  pointer-events: none;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  backdrop-filter: blur(8px);
 }
 
 .ui-toast.is-visible {
   transform: translateY(0);
   opacity: 1;
 }
+
+.ui-toast-icon {
+  font-size: 1.2rem;
+}
+
+.ui-toast-success { border-color: var(--success); color: var(--success); }
+.ui-toast-error { border-color: var(--danger); color: var(--danger); }
+.ui-toast-warning { border-color: var(--accent-strong); color: var(--accent-strong); }
+.ui-toast-blacklist { border-color: var(--danger); }
 
 :root {
   --bg: #060b12;
@@ -782,8 +794,17 @@ h2 {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.6rem;
   margin-bottom: 0.35rem;
+}
+
+.briefing-token-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  object-fit: cover;
 }
 
 .briefing-card-symbol {
@@ -792,11 +813,44 @@ h2 {
   letter-spacing: -0.02em;
 }
 
-.briefing-card-sub {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--muted);
+/* Timeframe row logo */
+.timeframe-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.timeframe-token-ident {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.timeframe-token-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+
+/* Phoenix card logo */
+.phoenix-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.phoenix-token-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line);
+  object-fit: cover;
 }
 
 .briefing-card-age {
@@ -1431,6 +1485,28 @@ h2 {
 .btn-dex:hover {
   background: rgba(94, 234, 212, 0.2);
   transform: translateY(-1px);
+}
+
+.btn-blacklist {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--danger);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.1);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-blacklist:hover {
+  background: rgba(248, 113, 113, 0.25);
+  border-color: var(--danger);
+  transform: scale(1.1);
 }
 
 .briefing-note {
