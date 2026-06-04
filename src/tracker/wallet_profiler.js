@@ -1,7 +1,20 @@
+const { getHeliusWalletProfile } = require('./helius_calculator');
+
 /**
  * Wallet Profiler
  * Logic to determine wallet tags based on transaction behavior.
  */
+
+async function getFullWalletProfile(walletAddress) {
+  const transactions = []; // Logic to fetch transactions if needed for tags
+  const basicProfile = profileWallet(transactions);
+  const heliusData = await getHeliusWalletProfile(walletAddress);
+  
+  return {
+    ...basicProfile,
+    ...heliusData
+  };
+}
 
 function profileWallet(transactions) {
   if (!transactions || !Array.isArray(transactions) || transactions.length === 0) {
@@ -69,4 +82,4 @@ function profileWallet(transactions) {
   };
 }
 
-module.exports = { profileWallet };
+module.exports = { profileWallet, getFullWalletProfile };
