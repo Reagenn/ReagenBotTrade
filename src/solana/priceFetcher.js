@@ -5,14 +5,14 @@ const { isValidSolanaAddress } = require("./tokenValidator");
 const dbManager = require("../database/dbManager");
 
 const BIRDEYE_BASE = String(process.env.BIRDEYE_API_BASE || "https://public-api.birdeye.so").replace(/\/$/, "");
-const JUPITER_PRICE_BASE = String(process.env.JUPITER_PRICE_BASE || "https://api.jup.ag").replace(/\/$/, "");
+const JUPITER_PRICE_BASE = String(process.env.JUPITER_PRICE_BASE || "https://price.jup.ag").replace(/\/$/, "");
 const DEXSCREENER_BASE = "https://api.dexscreener.com";
 
 const config = {
   requestTimeoutMs: Number(process.env.PRICE_FETCH_TIMEOUT_MS || 4500),
   birdeyeApiKey: process.env.BIRDEYE_API_KEY || "",
   chainId: process.env.SOLANA_CHAIN_ID || "solana",
-  jupiterPricePath: String(process.env.JUPITER_PRICE_PATH || "/price/v2"),
+  jupiterPricePath: String(process.env.JUPITER_PRICE_PATH || "/v4/price"),
 };
 
 let currentBirdeyeIndex = 0;
@@ -321,18 +321,28 @@ async function getExecutionPrice(tokenAddress) {
 
   try {
     const JUP_API_KEY = process.env.JUPITER_API_KEY || "";
-    const response = await axios.get(`https://api.jup.ag/price/v2`, {
+    const response = await axios.get(`${JUPITER_PRICE_BASE}${config.jupiterPricePath}`, {
       params: { ids: mint },
       headers: JUP_API_KEY ? { 'x-api-key': JUP_API_KEY } : {},
       timeout: 3000
     });
 
-    const price = response.data?.data?.[mint]?.price;
+    const price = parseJupiterPrice(response.data, mint);
     if (price && Number(price) > 0) {
       return Number(price);
     }
   } catch (e) {
-    // console.warn(`[priceFetcher] Jupiter v2 execution price fail for ${mint.slice(0,6)}: ${e.message}`);
+    // Try fallback v2 if v4 fails or vice versa
+    try {
+      const altPath = config.jupiterPricePath.includes("v4") ? "/price/v2" : "/v4/price";
+      const altBase = altPath.includes("v2") ? "https://api.jup.ag" : "https://price.jup.ag";
+      const response = await axios.get(`${altBase}${altPath}`, {
+        params: { ids: mint },
+        timeout: 2000
+      });
+      const price = parseJupiterPrice(response.data, mint);
+      if (price) return price;
+    } catch (err) {}
   }
 
   // Fallback ke Birdeye jika Jupiter gagal
@@ -355,20 +365,38 @@ async function getExecutionPriceBatch(mints = []) {
   if (uniqueMints.length === 0) return {};
 
   const results = {};
-  try {
-    const JUP_API_KEY = process.env.JUPITER_API_KEY || "";
-    const response = await axios.get(`https://api.jup.ag/price/v2`, {
-      params: { ids: uniqueMints.join(',') },
-      headers: JUP_API_KEY ? { 'x-api-key': JUP_API_KEY } : {},
-      timeout: 5000
-    });
-    
-    const data = response.data?.data || {};
-    uniqueMints.forEach(m => {
-      if (data[m]?.price) results[m] = Number(data[m].price);
-    });
-  } catch (e) {
-    console.warn(`[priceFetcher] Jupiter batch execution price fail: ${e.message}`);
+  const JUP_API_KEY = process.env.JUPITER_API_KEY || "";
+
+  const tryFetch = async (base, path) => {
+    try {
+      const response = await axios.get(`${base}${path}`, {
+        params: { ids: uniqueMints.join(',') },
+        headers: JUP_API_KEY ? { 'x-api-key': JUP_API_KEY } : {},
+        timeout: 5000
+      });
+      const data = response.data?.data || response.data || {};
+      uniqueMints.forEach(m => {
+        const price = parseJupiterPrice(response.data, m);
+        if (price) results[m] = price;
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Try primary
+  let success = await tryFetch(JUPITER_PRICE_BASE, config.jupiterPricePath);
+  
+  // Try fallback
+  if (!success || Object.keys(results).length < uniqueMints.length) {
+    const altPath = config.jupiterPricePath.includes("v4") ? "/price/v2" : "/v4/price";
+    const altBase = altPath.includes("v2") ? "https://api.jup.ag" : "https://price.jup.ag";
+    await tryFetch(altBase, altPath);
+  }
+
+  if (Object.keys(results).length === 0) {
+    console.warn(`[priceFetcher] Jupiter batch execution price fail for all attempts.`);
   }
 
   // Fill missing with UI batch (DexScreener)
