@@ -2948,65 +2948,80 @@ h2 {
     font-size: 0.7rem;
   }
 
-  .page-hero h1 { font-size: 1.4rem; }
-  .hero-copy { font-size: 0.8rem; }
+  .page-hero h1 {
+    font-size: 1.4rem;
+  }
 
-  /* Final Small Screen Polish */
-  .paper-summary-grid,
-  .metric-grid,
-  .market-stat-grid,
-  .holder-tier-summary {
+  /* Monitor Page Fixes - Force single column earlier */
+  .briefing-tiers,
+  .timeframe-columns,
+  .discovery-groups,
+  .holder-wallet-grid {
     grid-template-columns: 1fr !important;
+    gap: 1rem;
   }
 
-  .briefing-list, .timeframe-list {
-    max-height: none; /* Allow natural expansion on very small screens to avoid double scroll */
-    overflow: visible;
+  .holder-tier-summary {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
   }
 
+  .briefing-tier {
+    min-height: auto;
+    border-radius: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  h1 { font-size: 1.55rem; }
+  
+  .grid { display: flex; flex-direction: column; gap: 0.75rem; }
+  
+  /* CEX & Paper Fixes */
+  .paper-summary-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .metric-grid,
+  .market-stat-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+
+  .panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .briefing-card-top {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
   .briefing-card {
-    padding: 0.75rem;
+    padding: 0.85rem;
   }
 
   .briefing-card-symbol {
     font-size: 1rem;
   }
 
-  .signal-row {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-  
-  .signal-col { width: 100%; border: none !important; }
-
-  .token-details-toolbar {
-    flex-direction: column;
+  .briefing-score-ring {
+    width: 2.75rem;
+    height: 2.75rem;
   }
 
-  .paper-history-head, .paper-history-row {
-    grid-template-columns: 1.2fr 0.8fr;
-    font-size: 0.75rem;
+  .briefing-score-value {
+    font-size: 0.9rem;
   }
-  
-  /* Hide non-critical columns on mobile for tables */
-  .paper-history-head span:nth-child(n+3), 
-  .paper-history-row span:nth-child(n+3) { display: none; }
 
-  .bar-hitbox { width: 8px; }
-  .chart-container { padding-left: 25px; height: 90px; }
-  .y-axis { width: 22px; font-size: 0.45rem; }
-
-  .briefing-card-top { flex-direction: column; gap: 0.5rem; }
-  .briefing-score-ring { width: 2.25rem; height: 2.25rem; }
-  .briefing-score-value { font-size: 0.8rem; }
-  .briefing-score-label { font-size: 0.5rem; }
-
-  /* Fix for CA and Symbols truncation on tiny screens */
-  .briefing-ca, .top-performer-ca, .phoenix-ca {
-    font-size: 0.6rem;
-    word-break: break-all;
+  .briefing-score-label {
+    display: none;
   }
 }
 .page-hero-paper {
