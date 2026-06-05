@@ -483,53 +483,111 @@ function renderTrackedWallets(wallets) {
   
   try {
     if (!wallets || wallets.length === 0) {
-      el.trackedWalletsGrid.innerHTML = `<div class="trade-meta">Belum ada dompet yang dipantau. Gunakan terminal untuk menambahkan dompet cerdas.</div>`;
+      el.trackedWalletsGrid.innerHTML = `<div class="briefing-empty"><p class="briefing-empty-title">Belum ada dompet yang dipantau.</p></div>`;
       if (el.trackedWalletCount) el.trackedWalletCount.textContent = "0 Wallets";
       return;
     }
 
     if (el.trackedWalletCount) el.trackedWalletCount.textContent = `${wallets.length} Wallets`;
 
+    // Redesigned Grid Container
+    el.trackedWalletsGrid.className = "tracked-wallet-grid";
+
     el.trackedWalletsGrid.innerHTML = wallets.map(w => {
       const p7 = Number(w.profit7d || 0);
       const r7 = Number(w.roi7d || 0);
       const p30 = Number(w.profit30d || 0);
+      const r30 = Number(w.roi30d || 0);
+      const avgInv = Number(w.avgInvested || 0);
       
-      const network = String(w.network || "solana").toLowerCase();
-      
-      // Icon mapping
-      let networkIcon = "◈";
-      if (network === "bsc") networkIcon = "🔶";
-      if (network === "base") networkIcon = "🔵";
-      if (w.type === "CEX") networkIcon = "🏦";
-
       const tags = Array.isArray(w.tags) ? w.tags : [];
-      const tagHtml = tags.map(t => `<span class="page-badge page-badge-monitor" style="font-size: 0.6rem; opacity: 0.8">${t}</span>`).join("");
+      const tagHtml = tags.map((t, i) => {
+        const isBlue = i === 2; // Simple heuristic to match London/Asia blue tags in image
+        return `<span class="wallet-tag ${isBlue ? 'wallet-tag-blue' : ''}">${t}</span>`;
+      }).join("");
+
+      // Chart Calculations
+      const history = (w.history || []).slice(-7);
+      let chartHtml = "";
+      if (history.length > 0) {
+        const profits = history.map(h => Number(h.profit));
+        const maxVal = Math.max(...profits.map(p => Math.abs(p)));
+        const yAxisMax = Math.ceil(maxVal / 100) * 100 || 100;
+        
+        // Y-axis labels
+        const yLabels = [yAxisMax, Math.round(yAxisMax / 3), 0, -Math.round(yAxisMax / 3)].map(v => `$${v}`);
+        const yLabelHtml = yLabels.map(l => `<span>${l}</span>`).join("");
+
+        const bars = history.map((h) => {
+          const val = Number(h.profit);
+          const heightPct = (Math.abs(val) / yAxisMax) * 50; // Max 50% height for one side
+          const isPositive = val >= 0;
+          const dayLabel = h.date ? h.date.split('-').slice(1).join('-') : ""; // MM-DD
+          
+          return `
+            <div class="bar-col">
+              <div class="bar-wrapper">
+                <div class="bar-hitbox" style="height: ${heightPct}%; background: ${isPositive ? '#4ade80' : '#f87171'}; bottom: ${isPositive ? '50%' : 'auto'}; top: ${isPositive ? 'auto' : '50%'}; position: absolute;"></div>
+                <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.1); position: absolute; top: 50%;"></div>
+              </div>
+              <span class="bar-label">${dayLabel}</span>
+            </div>
+          `;
+        }).join("");
+
+        chartHtml = `
+          <div class="chart-section">
+            <span class="chart-title">DAILY PROFIT (7D)</span>
+            <div class="chart-container">
+              <div class="y-axis">${yLabelHtml}</div>
+              <div class="chart-bars">${bars}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      const p7Tone = p7 >= 0 ? "good" : "bad";
+      const p30Tone = p30 >= 0 ? "good" : "bad";
 
       return `
-        <article class="top-performer-card" style="border-left: 3px solid ${p7 >= 0 ? '#4ade80' : '#f87171'}">
-          <div class="top-performer-multiplier" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${r7 >= 0 ? '+' : ''}${r7.toFixed(0)}%</div>
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
-            <span style="font-size: 1.2rem">${networkIcon}</span>
-            <span class="top-performer-symbol">${w.alias || (w.id ? shortenMint(w.id) : 'Unknown')}</span>
-          </div>
-          <code class="top-performer-ca" title="${w.id || ''}">${w.id || 'N/A'}</code>
-          
-          <div style="display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap">
-            <span class="page-badge page-badge-cex" style="font-size: 0.6rem">${w.type || 'DEX'}</span>
-            ${tagHtml}
+        <article class="wallet-card">
+          <div class="wallet-card-header">
+            <div class="wallet-card-title">${w.alias || (w.id ? shortenMint(w.id) : 'Unknown')}</div>
+            <div class="wallet-card-tags">
+              ${tagHtml}
+            </div>
           </div>
 
-          <div class="top-performer-stat">
-            <span class="top-performer-stat-label">7D Profit</span>
-            <span class="top-performer-stat-value" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${p7 >= 0 ? '+' : ''}${formatMoney(p7)}</span>
+          ${chartHtml}
+
+          <div class="stats-divider"></div>
+
+          <div class="stats-grid-2col">
+            <div class="stat-item">
+              <span class="stat-label">7D PROFIT</span>
+              <span class="stat-value ${p7Tone}">${p7 >= 0 ? '+' : ''}${formatMoney(p7)}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">30D PROFIT</span>
+              <span class="stat-value ${p30Tone}">${p30 >= 0 ? '+' : ''}${formatMoney(p30)}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">7D ROI</span>
+              <span class="stat-value ${p7Tone}">${r7 >= 0 ? '+' : ''}${r7.toFixed(1)}%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">30D ROI</span>
+              <span class="stat-value ${p30Tone}">${r30 >= 0 ? '+' : ''}${r30.toFixed(1)}%</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">AVG INVESTED</span>
+              <span class="stat-value neutral">${formatMoney(avgInv)}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">ACTIVITY</span>
+              <span class="stat-subvalue">${w.activity || 'N/A'}</span>
+            </div>
           </div>
-          <div class="top-performer-stat">
-            <span class="top-performer-stat-label">30D Profit</span>
-            <span class="top-performer-stat-value">${formatMoney(p30)}</span>
-          </div>
-          
-          <div class="top-performer-accum">Win Rate: ${Number(w.winRate || 0).toFixed(1)}% · ${w.activity || 'N/A'}</div>
         </article>
       `;
     }).join("");
