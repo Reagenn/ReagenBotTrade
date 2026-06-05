@@ -2789,9 +2789,9 @@ async function startRealtimePriceUpdates() {
       if (!allMints.length) return;
 
       // 1. Fetch live data for active positions from dedicated endpoint
-      const paperResponse = await fetch("/api/dashboard/live-prices", { cache: "no-store" });
+      const paperResponse = await fetchWithAuth("/api/dashboard/live-prices", { cache: "no-store" });
       if (paperResponse.ok) {
-        const liveData = await paperResponse.json();
+        const liveData = await paperResponse.json().catch(() => null);
         if (Array.isArray(liveData)) {
           liveData.forEach(pos => {
             const priceEl = document.getElementById(`price-sol-${pos.id}`);
@@ -2811,15 +2811,14 @@ async function startRealtimePriceUpdates() {
       }
 
       // 2. Fetch prices for Monitor Cards
-      const res = await fetch(`/api/prices?mints=${allMints.join(",")}`);
+      const res = await fetchWithAuth(`/api/prices?mints=${allMints.join(",")}`);
       if (!res.ok) {
         console.warn("[PRICE UPDATE] Gagal mengambil harga dari endpoint, mempertahankan data SQLite.");
         return; // Ignore update, keep existing prices
       }
-      
-      const data = await res.json();
-      const prices = data.prices || {};
 
+      const data = await res.json().catch(() => ({}));
+      const prices = data.prices || {};
       document.querySelectorAll("[data-briefing-mint]").forEach(card => {
         const mint = card.dataset.briefingMint;
         const p = prices[mint];
@@ -2849,10 +2848,10 @@ function startCexPricePolling() {
     if (window.location.hash !== "#cex-spike" && window.location.hash !== "#cex") return;
 
     try {
-      const response = await fetch("/api/cex/live-prices", { cache: "no-store" });
+      const response = await fetchWithAuth("/api/cex/live-prices", { cache: "no-store" });
       if (!response.ok) return;
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
       if (Array.isArray(data)) {
         data.forEach(pos => {
           const priceEl = document.getElementById(`price-cex-${pos.id}`);

@@ -340,6 +340,36 @@ app.use("/api/admin/users", adminRoutes);
 // Test Diagnostic
 app.get("/api/admin/test", (req, res) => res.json({ ok: true, msg: "Admin base path working" }));
 
+app.get("/api/cex-paper", async (req, res) => {
+  try {
+    const cexPaper = await dbManager.getState("cex_bot_state") || { stats: {} };
+    const dbCexPositions = await dbManager.getActivePositions('cex');
+    const dbCexTrades = await dbManager.getCexTrades(100);
+    const dbCexStats = await dbManager.getCexStats();
+    
+    if (dbCexStats) {
+      cexPaper.stats = {
+        totalTrades: dbCexStats.total_trades || 0,
+        winRate: dbCexStats.win_rate || 0,
+        netPnlUsdt: dbCexStats.net_pnl_usdt || 0,
+        balanceUsdt: await dbManager.getCexBalance()
+      };
+    }
+
+    cexPaper.activeTrades = dbCexPositions.map(p => ({
+      id: p.id, symbol: p.symbol, entryPrice: p.entry_price, currentPrice: p.current_price || p.entry_price,
+      amountUsdt: p.amount_usdt, pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
+    }));
+
+    cexPaper.tradeHistory = dbCexTrades.map(t => ({
+      id: t.id, symbol: t.symbol, entryPrice: t.entry_price, exitPrice: t.exit_price,
+      amountUsdt: t.amount_usdt, pnlUsdt: t.pnl_usd, pnlPct: t.pnl_percent, result: t.result
+    }));
+
+    res.json(cexPaper);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/db-status", async (req, res) => {
   try {
     const tables = await dbManager.query("SELECT name FROM sqlite_master WHERE type='table'");
@@ -356,6 +386,38 @@ app.get("/api/dashboard", async (req, res) => {
   try {
     const payload = await buildDashboardPayload();
     res.json(payload);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/dashboard/live-prices", async (req, res) => {
+  try {
+    const positions = await dbManager.getActivePositions('solana');
+    if (!positions?.length) return res.json([]);
+
+    const mints = positions.map(p => p.token_address);
+    const prices = await getUIPriceBatch(mints);
+    
+    const results = positions.map(pos => {
+      const currentPrice = prices[pos.token_address]?.usd || pos.current_price;
+      const entryPrice = Number(pos.entry_price);
+      return { 
+        id: pos.id, 
+        currentPrice, 
+        pnlPct: entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0 
+      };
+    });
+
+    res.json(results);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get("/api/prices", async (req, res) => {
+  try {
+    const mints = req.query.mints ? req.query.mints.split(",") : [];
+    if (!mints.length) return res.json({ prices: {} });
+    
+    const prices = await getUIPriceBatch(mints);
+    res.json({ prices });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

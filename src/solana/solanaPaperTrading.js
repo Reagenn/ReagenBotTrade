@@ -225,7 +225,8 @@ async function buildPriceMapForCycle(candidates, engine) {
 
   for (const mint of openMints) {
     if (fetchedPrices[mint]) {
-      prices[mint] = fetchedPrices[mint];
+      // getUIPriceBatch now returns { usd, change24h }, extract .usd for engine
+      prices[mint] = fetchedPrices[mint].usd;
     }
   }
 

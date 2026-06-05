@@ -270,42 +270,72 @@ async function fetchDexScreenerPrice(tokenAddress) {
   };
 }
 
+let uiPriceCache = {
+  data: {},
+  lastFetch: 0
+};
+
 /**
  * Jalur UI: Ambil harga banyak koin sekaligus via DexScreener (Batch).
  * Lebih hemat rate limit & optimal untuk dashboard.
  * @param {string[]} addresses 
- * @returns {Promise<Record<string, number>>}
+ * @returns {Promise<Record<string, {usd: number, change24h: number}>>}
  */
 async function getUIPriceBatch(addresses) {
   const unique = [...new Set((addresses || []).filter(isValidSolanaAddress))];
   if (unique.length === 0) return {};
 
+  // Simple 5-second cache
+  const now = Date.now();
+  if (now - uiPriceCache.lastFetch < 5000 && unique.every(a => uiPriceCache.data[a])) {
+    return uiPriceCache.data;
+  }
+
   const prices = {};
-  // DexScreener limit per batch is ~30
   const CHUNK_SIZE = 30;
+  const tasks = [];
+
   for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
     const chunk = unique.slice(i, i + CHUNK_SIZE);
-    try {
-      const response = await requestWithTimeout({
-        method: "GET",
-        url: `${DEXSCREENER_BASE}/latest/dex/tokens/${chunk.join(",")}`,
-        headers: { accept: "application/json" },
-      });
-      
-      const pairs = Array.isArray(response.data?.pairs) ? response.data.pairs : [];
-      chunk.forEach(mint => {
-        const bestPair = pairs
-          .filter(p => p.baseToken?.address === mint && p.chainId === config.chainId)
-          .sort((a, b) => (Number(b.liquidity?.usd || 0) + Number(b.volume?.h24 || 0)) - (Number(a.liquidity?.usd || 0) + Number(a.volume?.h24 || 0)))[0];
+    tasks.push((async () => {
+      try {
+        const response = await requestWithTimeout({
+          method: "GET",
+          url: `${DEXSCREENER_BASE}/latest/dex/tokens/${chunk.join(",")}`,
+          headers: { accept: "application/json" },
+        });
         
-        if (bestPair) {
-          prices[mint] = Number(bestPair.priceUsd);
-        }
-      });
-    } catch (e) {
-      console.warn(`[priceFetcher] UI Batch fetch failed for chunk: ${e.message}`);
-    }
+        const pairs = Array.isArray(response.data?.pairs) ? response.data.pairs : [];
+        chunk.forEach(mint => {
+          const bestPair = pairs
+            .filter(p => p.baseToken?.address === mint && p.chainId === config.chainId)
+            .sort((a, b) => {
+                const liqA = Number(a.liquidity?.usd || 0);
+                const liqB = Number(b.liquidity?.usd || 0);
+                const volA = Number(a.volume?.h24 || 0);
+                const volB = Number(b.volume?.h24 || 0);
+                return (liqB + volB) - (liqA + volA);
+            })[0];
+          
+          if (bestPair) {
+            prices[mint] = {
+                usd: Number(bestPair.priceUsd),
+                change24h: Number(bestPair.priceChange?.h24 || 0)
+            };
+          }
+        });
+      } catch (e) {
+        console.warn(`[priceFetcher] UI Batch fetch failed for chunk: ${e.message}`);
+      }
+    })());
   }
+
+  await Promise.all(tasks);
+
+  // Update Cache
+  Object.assign(uiPriceCache.data, prices);
+  uiPriceCache.lastFetch = now;
+
   return prices;
 }
 
@@ -404,7 +434,10 @@ async function getExecutionPriceBatch(mints = []) {
   if (missing.length > 0) {
     try {
       const fallback = await getUIPriceBatch(missing);
-      Object.assign(results, fallback);
+      // Extract only .usd as this function expects number values
+      Object.entries(fallback).forEach(([mint, data]) => {
+          results[mint] = data.usd;
+      });
     } catch (e) {}
   }
 
