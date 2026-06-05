@@ -325,12 +325,15 @@ let tokenDetailsState = {
 let walletRawData = [];
 let walletFilterState = {
   sort: "7D ROI ↓",
-  tags: ["wide"] // Default active tags from UI
+  tags: ["wide"] // Matches the 'is-active' class in index.html
 };
 
 function initWalletFilters() {
   const filtersEl = document.querySelector(".wallet-filters");
   if (!filtersEl) return;
+
+  // Sync UI with initial state
+  syncFilterUI();
 
   filtersEl.addEventListener("click", (e) => {
     const btn = e.target.closest(".filter-chip");
@@ -352,7 +355,7 @@ function initWalletFilters() {
       if (tag.startsWith("All")) {
         // Reset this category
         group.querySelectorAll(".filter-chip").forEach(b => b.classList.remove("is-active", "is-active-blue"));
-        const colorClass = (tag.includes("dur") || tag.includes("market")) ? "is-active-blue" : "is-active";
+        const colorClass = (category === "dur" || category === "market") ? "is-active-blue" : "is-active";
         btn.classList.add(colorClass);
         
         // Remove all tags belonging to this category from state
@@ -366,21 +369,71 @@ function initWalletFilters() {
         if (isActive) {
           if (!walletFilterState.tags.includes(tag)) walletFilterState.tags.push(tag);
           // Remove "All" active state if a specific tag is clicked
-          group.querySelector(".filter-chip:first-child").classList.remove("is-active", "is-active-blue");
+          const allBtn = group.querySelector(".filter-chip:first-child");
+          if (allBtn) allBtn.classList.remove("is-active", "is-active-blue");
         } else {
           walletFilterState.tags = walletFilterState.tags.filter(t => t !== tag);
           // If no tags left in this category, reactivate "All"
           const categoryActive = Array.from(group.querySelectorAll(".filter-chip")).some(b => !b.textContent.startsWith("All") && (b.classList.contains("is-active") || b.classList.contains("is-active-blue")));
           if (!categoryActive) {
             const allBtn = group.querySelector(".filter-chip:first-child");
-            const allColorClass = (allBtn.textContent.includes("dur") || allBtn.textContent.includes("market")) ? "is-active-blue" : "is-active";
-            allBtn.classList.add(allColorClass);
+            if (allBtn) {
+              const allColorClass = (category === "dur" || category === "market") ? "is-active-blue" : "is-active";
+              allBtn.classList.add(allColorClass);
+            }
           }
         }
       }
     }
 
     renderTrackedWallets(walletRawData);
+  });
+}
+
+function syncFilterUI() {
+  const filtersEl = document.querySelector(".wallet-filters");
+  if (!filtersEl) return;
+
+  // 1. Sync Sort
+  const sortChips = filtersEl.querySelectorAll('.filter-group:first-child .filter-chip');
+  sortChips.forEach(btn => {
+    if (btn.textContent.trim() === walletFilterState.sort) {
+      btn.classList.add('is-active');
+    } else {
+      btn.classList.remove('is-active');
+    }
+  });
+
+  // 2. Sync Tags
+  const tagGroups = filtersEl.querySelectorAll('.filter-chips');
+  tagGroups.forEach(group => {
+    const category = group.dataset.filterCategory;
+    const chips = group.querySelectorAll('.filter-chip');
+    let categoryHasActive = false;
+
+    chips.forEach(btn => {
+      const tag = btn.textContent.trim();
+      const isColorBlue = (category === "dur" || category === "market");
+      const colorClass = isColorBlue ? "is-active-blue" : "is-active";
+
+      if (walletFilterState.tags.includes(tag)) {
+        btn.classList.add(colorClass);
+        categoryHasActive = true;
+      } else if (!tag.startsWith("All")) {
+        btn.classList.remove("is-active", "is-active-blue");
+      }
+    });
+
+    // Handle "All" button
+    const allBtn = chips[0];
+    if (allBtn && allBtn.textContent.trim().startsWith("All")) {
+      if (!categoryHasActive) {
+        const isColorBlue = (category === "dur" || category === "market");
+        allBtn.classList.add(isColorBlue ? "is-active-blue" : "is-active");
+      } else {
+        allBtn.classList.remove("is-active", "is-active-blue");
+      }
+    }
   });
 }
 
