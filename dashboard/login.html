@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login · Reagen Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0d1117;
+            --bg-card: #161b22;
+            --accent: #58a6ff;
+            --accent-glow: rgba(88, 166, 255, 0.3);
+            --text-main: #f0f6fc;
+            --text-dim: #8b9cb3;
+            --success: #3fb950;
+            --danger: #f85149;
+            --border: #30363d;
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'DM Sans', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at 50% 50%, #161b22 0%, #0d1117 100%);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #fff 0%, #8b9cb3 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .choice-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .btn-choice {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-main);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-choice.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #000;
+        }
+
+        .form-group {
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            background: #0d1117;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-main);
+            font-family: inherit;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        .btn-guest {
+            width: 100%;
+            padding: 0.75rem;
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+
+        .switch-form {
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .switch-form a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .error-msg {
+            background: rgba(248, 81, 73, 0.1);
+            color: var(--danger);
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .success-msg {
+            background: rgba(63, 185, 80, 0.1);
+            color: var(--success);
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">REAGEN</div>
+        <p class="subtitle">Institutional Trading Console</p>
+
+        <div id="errorBox" class="error-msg"></div>
+        <div id="successBox" class="success-msg"></div>
+
+        <div id="mainChoices">
+            <button class="btn-guest" id="guestBtn">Enter as Guest (Read-only)</button>
+            <div style="margin: 1.5rem 0; color: var(--text-dim); font-size: 0.8rem;">— OR —</div>
+            <button class="btn-primary" id="showLoginBtn">Login as User/Admin</button>
+        </div>
+
+        <div id="loginForm" style="display: none;">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" placeholder="Enter username">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <button class="btn-primary" id="doLoginBtn">Login</button>
+            <div class="switch-form">
+                Don't have an account? <a href="#" id="showRegisterLink">Register</a>
+            </div>
+            <div class="switch-form">
+                <a href="#" id="backToChoices">Back to choices</a>
+            </div>
+        </div>
+
+        <div id="registerForm" style="display: none;">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="regUsername" placeholder="Choose username">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="regPassword" placeholder="Create password">
+            </div>
+            <button class="btn-primary" id="doRegisterBtn">Register</button>
+            <div class="switch-form">
+                Already have an account? <a href="#" id="showLoginLink">Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const el = {
+            mainChoices: document.getElementById('mainChoices'),
+            loginForm: document.getElementById('loginForm'),
+            registerForm: document.getElementById('registerForm'),
+            errorBox: document.getElementById('errorBox'),
+            successBox: document.getElementById('successBox'),
+            guestBtn: document.getElementById('guestBtn'),
+            showLoginBtn: document.getElementById('showLoginBtn'),
+            showRegisterLink: document.getElementById('showRegisterLink'),
+            showLoginLink: document.getElementById('showLoginLink'),
+            backToChoices: document.getElementById('backToChoices'),
+            doLoginBtn: document.getElementById('doLoginBtn'),
+            doRegisterBtn: document.getElementById('doRegisterBtn'),
+            usernameInp: document.getElementById('username'),
+            passwordInp: document.getElementById('password'),
+            regUsernameInp: document.getElementById('regUsername'),
+            regPasswordInp: document.getElementById('regPassword')
+        };
+
+        function showError(msg) {
+            el.errorBox.textContent = msg;
+            el.errorBox.style.display = 'block';
+            el.successBox.style.display = 'none';
+        }
+
+        function showSuccess(msg) {
+            el.successBox.textContent = msg;
+            el.successBox.style.display = 'block';
+            el.errorBox.style.display = 'none';
+        }
+
+        el.guestBtn.onclick = () => {
+            localStorage.setItem('reagen_user', JSON.stringify({ role: 'GUEST', status: 'APPROVED', username: 'Guest' }));
+            localStorage.removeItem('reagen_token');
+            window.location.href = '/';
+        };
+
+        el.showLoginBtn.onclick = () => {
+            el.mainChoices.style.display = 'none';
+            el.loginForm.style.display = 'block';
+        };
+
+        el.backToChoices.onclick = (e) => {
+            e.preventDefault();
+            el.mainChoices.style.display = 'block';
+            el.loginForm.style.display = 'none';
+        };
+
+        el.showRegisterLink.onclick = (e) => {
+            e.preventDefault();
+            el.loginForm.style.display = 'none';
+            el.registerForm.style.display = 'block';
+        };
+
+        el.showLoginLink.onclick = (e) => {
+            e.preventDefault();
+            el.registerForm.style.display = 'none';
+            el.loginForm.style.display = 'block';
+        };
+
+        el.doLoginBtn.onclick = async () => {
+            const username = el.usernameInp.value;
+            const password = el.passwordInp.value;
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.error || 'Login failed');
+
+                localStorage.setItem('reagen_token', data.token);
+                localStorage.setItem('reagen_user', JSON.stringify(data.user));
+                window.location.href = '/';
+            } catch (err) {
+                showError(err.message);
+            }
+        };
+
+        el.doRegisterBtn.onclick = async () => {
+            const username = el.regUsernameInp.value;
+            const password = el.regPasswordInp.value;
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.error || 'Registration failed');
+
+                showSuccess(data.message);
+                setTimeout(() => {
+                    el.registerForm.style.display = 'none';
+                    el.loginForm.style.display = 'block';
+                }, 2000);
+            } catch (err) {
+                showError(err.message);
+            }
+        };
+    </script>
+</body>
+</html>

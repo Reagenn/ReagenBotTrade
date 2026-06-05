@@ -233,6 +233,16 @@ async function initDb() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Tabel Users (RBAC)
+    await run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE,
+      password TEXT,
+      role TEXT DEFAULT 'GUEST',
+      status TEXT DEFAULT 'PENDING',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
     try {
         const configSql = (await query("SELECT sql FROM sqlite_master WHERE name='bot_config'"))[0].sql;
         if (configSql.includes("CHECK (id = 1)")) {

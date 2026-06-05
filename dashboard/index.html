@@ -49,29 +49,31 @@
             <span class="nav-brand-eyebrow">Reagen_Agent_Trade</span>
             <strong class="nav-brand-title">Console</strong>
           </div>
+          <button type="button" class="nav-menu-toggle" id="navMenuToggle" aria-label="Menu">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
         </div>
 
         <div class="nav-links" role="tablist">
           <button type="button" class="nav-link is-active" data-page="phoenix" role="tab" aria-selected="true" aria-controls="page-phoenix">
-            <span class="nav-link-icon">🔥</span>
             Agent
           </button>
           <button type="button" class="nav-link" data-page="monitor" role="tab" aria-selected="false" aria-controls="page-monitor">
-            <span class="nav-link-icon">👁️</span>
             Monitor
           </button>
           <button type="button" class="nav-link" data-page="track-wallet" role="tab" aria-selected="false" aria-controls="page-track-wallet">
-            <span class="nav-link-icon">💼</span>
             Track Wallet
           </button>
           <button type="button" class="nav-link" data-page="solana-paper" role="tab" aria-selected="false" aria-controls="page-solana-paper">
-
-            <span class="nav-link-icon">◈</span>
             SOL Paper
           </button>
           <button type="button" class="nav-link" data-page="cex-spike" role="tab" aria-selected="false" aria-controls="page-cex-spike">
-            <span class="nav-link-icon">⚡</span>
             CEX Spike
+          </button>
+          <button type="button" class="nav-link" id="navAdminLink" data-page="users" role="tab" aria-selected="false" aria-controls="page-users" style="display: none;">
+            Users
           </button>
         </div>
 
@@ -376,7 +378,7 @@
               <div class="pill-inline" id="trackedWalletCount">0 Wallets</div>
             </div>
             
-            <div class="track-wallet-grid" id="trackedWalletsGrid"></div>
+            <div class="top-performer-grid" id="trackedWalletsGrid"></div>
           </section>
         </main>
       </div>
@@ -491,6 +493,50 @@
 
       <!-- BTC Futures Trading -->
     </div>
+
+      <!-- Admin User Management -->
+      <div id="page-users" class="page-view" role="tabpanel" hidden>
+        <header class="page-hero">
+          <div>
+            <p class="eyebrow">Admin Console · Role Control</p>
+            <h1>User Management</h1>
+            <p class="hero-copy">Kelola akses pengguna. Berikan izin (Approve) kepada pengguna baru yang mendaftar agar mereka bisa menggunakan fitur trading.</p>
+          </div>
+          <div class="page-hero-badge">
+            <span class="page-badge" style="background: rgba(167, 139, 250, 0.1); color: #a78bfa; border-color: rgba(167, 139, 250, 0.3);">Admin Only</span>
+          </div>
+        </header>
+
+        <main class="grid">
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Pending Approval</p>
+                <h2>Menunggu Persetujuan</h2>
+              </div>
+            </div>
+            <div id="pendingUsersList" class="stack">
+                <div class="briefing-empty">
+                    <p class="briefing-empty-title">Memuat data user...</p>
+                </div>
+            </div>
+          </section>
+
+          <section class="panel span-12">
+            <div class="panel-head">
+              <div>
+                <p class="section-kicker">Database</p>
+                <h2>Daftar Seluruh Pengguna</h2>
+              </div>
+            </div>
+            <div id="allUsersList" class="stack">
+                <div class="briefing-empty">
+                    <p class="briefing-empty-title">Memuat data user...</p>
+                </div>
+            </div>
+          </section>
+        </main>
+      </div>
 
     <dialog id="blacklistDialog" class="phoenix-dialog" style="max-width: 420px; border-color: rgba(248, 113, 113, 0.4)">
       <div style="text-align: center; padding: 1rem 0">

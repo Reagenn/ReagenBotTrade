@@ -1,5 +1,65 @@
 const dashboardUrl = "/api/dashboard";
 
+// Auth Check
+const currentUser = JSON.parse(localStorage.getItem('reagen_user') || 'null');
+const currentToken = localStorage.getItem('reagen_token');
+
+if (!currentUser && !window.location.pathname.includes('login.html')) {
+  window.location.href = '/login.html';
+}
+
+/**
+ * Fetch with Auth Header
+ */
+async function fetchWithAuth(url, options = {}) {
+  const headers = options.headers || {};
+  if (currentToken) {
+    headers['Authorization'] = `Bearer ${currentToken}`;
+  }
+  
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    // Handle token expiration/invalid
+    if (res.status === 401 || res.status === 403) {
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+          const data = await res.json().catch(() => ({}));
+          if (data.error && data.error.toLowerCase().includes('token')) {
+              console.warn("[AUTH] Token expired or invalid, logging out...");
+              localStorage.removeItem('reagen_token');
+              localStorage.removeItem('reagen_user');
+              window.location.href = '/login.html';
+          }
+      }
+    }
+    
+    return res;
+  } catch (err) {
+    console.error(`[FETCH ERROR] ${url}:`, err);
+    throw err;
+  }
+}
+
+async function checkAdminConnectivity() {
+    console.log("[DIAGNOSTIC] Checking Admin API connectivity...");
+    try {
+        const t1 = await fetchWithAuth("/api/admin/test");
+        console.log("[DIAGNOSTIC] /api/admin/test status:", t1.status);
+        
+        const t2 = await fetchWithAuth("/api/admin/users/health");
+        console.log("[DIAGNOSTIC] /api/admin/users/health status:", t2.status);
+    } catch (e) {
+        console.error("[DIAGNOSTIC] Connection failed:", e.message);
+    }
+}
+
 const PAGE_TITLES = {
   phoenix: "Phoenix Scanner v4 · Reagen Console",
   monitor: "Solana Monitor · Reagen Console",
@@ -7,6 +67,7 @@ const PAGE_TITLES = {
   "solana-paper": "Solana Paper Trading · Reagen Console",
   "cex-spike": "CEX Volume Spike · Reagen Console",
   trading: "BTC Futures Trading · Reagen Console",
+  users: "User Management · Reagen Admin",
 };
 
 const PHOENIX_TIER_LABELS = {
@@ -47,7 +108,103 @@ window.ui = {
     }, 10);
   }
 };
+// Mobile menu elements
+const navMenuToggle = document.getElementById("navMenuToggle");
+const navLinks = document.querySelector(".nav-links");
+
+if (navMenuToggle && navLinks) {
+  navMenuToggle.onclick = () => {
+    navMenuToggle.classList.toggle("is-active");
+    navLinks.classList.toggle("is-active");
+  };
+
+  // Close menu when clicking outside or on a link
+  document.addEventListener("click", (e) => {
+    if (!navMenuToggle.contains(e.target) && !navLinks.contains(e.target)) {
+      navMenuToggle.classList.remove("is-active");
+      navLinks.classList.remove("is-active");
+    }
+  });
+
+  navLinks.querySelectorAll(".nav-link").forEach(link => {
+    link.addEventListener("click", () => {
+      navMenuToggle.classList.remove("is-active");
+      navLinks.classList.remove("is-active");
+    });
+  });
+}
+
 const ui = window.ui;
+
+// User Status & Logout in Nav
+function setupUserNav() {
+  const navActionsEl = document.querySelector(".nav-actions");
+  if (!navActionsEl || !currentUser) return;
+  
+  // Show Admin link if user is ADMIN
+  const navAdminLink = document.getElementById("navAdminLink");
+  if (navAdminLink && currentUser.role === 'ADMIN') {
+    navAdminLink.style.display = 'flex';
+  }
+
+  // Remove SOL balance from navbar as requested
+  const balanceBadge = document.getElementById("balanceBadge");
+  if (balanceBadge) balanceBadge.remove();
+
+  const userItem = document.createElement('div');
+  userItem.className = 'nav-user-status-top';
+  userItem.style.display = 'flex';
+  userItem.style.alignItems = 'center';
+  userItem.style.gap = '0.75rem';
+  userItem.style.padding = '0.4rem 0.75rem';
+  userItem.style.background = 'rgba(255, 255, 255, 0.04)';
+  userItem.style.border = '1px solid var(--line-strong)';
+  userItem.style.borderRadius = '2rem';
+  userItem.style.marginRight = '0.5rem';
+  
+  const statusColor = currentUser.status === 'APPROVED' ? '#4ade80' : '#fbbf24';
+  const isGuest = currentUser.role === 'GUEST';
+  
+  userItem.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <div style="width: 24px; height: 24px; border-radius: 50%; background: ${isGuest ? 'rgba(139, 156, 179, 0.1)' : 'rgba(94, 234, 212, 0.1)'}; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;">
+            ${isGuest ? '👤' : '🛡️'}
+        </div>
+        <div style="display: flex; flex-direction: column; line-height: 1.1;">
+            <div style="font-weight: 700; font-size: 0.78rem; color: var(--text);">${currentUser.username}</div>
+            <div style="font-size: 0.6rem; color: var(--muted); display: flex; align-items: center; gap: 0.2rem;">
+                <span style="width: 5px; height: 5px; border-radius: 50%; background: ${statusColor}; box-shadow: 0 0 4px ${statusColor}"></span>
+                ${currentUser.role} · ${currentUser.status}
+            </div>
+        </div>
+    </div>
+    <div style="width: 1px; height: 16px; background: var(--line-strong); margin: 0 0.25rem;"></div>
+    <button id="logoutBtn" style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); color: #f87171; cursor: pointer; font-size: 0.7rem; padding: 0.25rem 0.5rem; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 0.3rem; transition: all 0.2s; font-weight: 700; font-family: var(--font);" title="Logout">
+        LOGOUT
+    </button>
+  `;
+  
+  // Insert before the status pill
+  navActionsEl.insertBefore(userItem, navActionsEl.firstChild);
+  
+  const logoutBtn = document.getElementById('logoutBtn');
+  logoutBtn.onmouseover = () => { 
+    logoutBtn.style.background = 'rgba(248, 113, 113, 0.2)';
+    logoutBtn.style.borderColor = 'rgba(248, 113, 113, 0.4)';
+  };
+  logoutBtn.onmouseout = () => { 
+    logoutBtn.style.background = 'rgba(248, 113, 113, 0.1)';
+    logoutBtn.style.borderColor = 'rgba(248, 113, 113, 0.2)';
+  };
+  
+  logoutBtn.onclick = () => {
+    localStorage.removeItem('reagen_token');
+    localStorage.removeItem('reagen_user');
+    window.location.href = '/login.html';
+  };
+}
+setupUserNav();
+
 
 const el = {
   generatedAt: document.getElementById("generatedAt"),
@@ -199,8 +356,10 @@ function formatHours(value) {
 function formatTime(value) {
   if (!value) return "-";
   return new Date(value).toLocaleString("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "medium",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
   });
 }
 
@@ -322,58 +481,62 @@ function summarizeLedger(ledger) {
 function renderTrackedWallets(wallets) {
   if (!el.trackedWalletsGrid) return;
   
-  if (!wallets || wallets.length === 0) {
-    el.trackedWalletsGrid.innerHTML = `<div class="trade-meta">Belum ada dompet yang dipantau. Gunakan terminal untuk menambahkan dompet cerdas.</div>`;
-    if (el.trackedWalletCount) el.trackedWalletCount.textContent = "0 Wallets";
-    return;
+  try {
+    if (!wallets || wallets.length === 0) {
+      el.trackedWalletsGrid.innerHTML = `<div class="trade-meta">Belum ada dompet yang dipantau. Gunakan terminal untuk menambahkan dompet cerdas.</div>`;
+      if (el.trackedWalletCount) el.trackedWalletCount.textContent = "0 Wallets";
+      return;
+    }
+
+    if (el.trackedWalletCount) el.trackedWalletCount.textContent = `${wallets.length} Wallets`;
+
+    el.trackedWalletsGrid.innerHTML = wallets.map(w => {
+      const p7 = Number(w.profit7d || 0);
+      const r7 = Number(w.roi7d || 0);
+      const p30 = Number(w.profit30d || 0);
+      
+      const network = String(w.network || "solana").toLowerCase();
+      
+      // Icon mapping
+      let networkIcon = "◈";
+      if (network === "bsc") networkIcon = "🔶";
+      if (network === "base") networkIcon = "🔵";
+      if (w.type === "CEX") networkIcon = "🏦";
+
+      const tags = Array.isArray(w.tags) ? w.tags : [];
+      const tagHtml = tags.map(t => `<span class="page-badge page-badge-monitor" style="font-size: 0.6rem; opacity: 0.8">${t}</span>`).join("");
+
+      return `
+        <article class="top-performer-card" style="border-left: 3px solid ${p7 >= 0 ? '#4ade80' : '#f87171'}">
+          <div class="top-performer-multiplier" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${r7 >= 0 ? '+' : ''}${r7.toFixed(0)}%</div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
+            <span style="font-size: 1.2rem">${networkIcon}</span>
+            <span class="top-performer-symbol">${w.alias || (w.id ? shortenMint(w.id) : 'Unknown')}</span>
+          </div>
+          <code class="top-performer-ca" title="${w.id || ''}">${w.id || 'N/A'}</code>
+          
+          <div style="display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap">
+            <span class="page-badge page-badge-cex" style="font-size: 0.6rem">${w.type || 'DEX'}</span>
+            ${tagHtml}
+          </div>
+
+          <div class="top-performer-stat">
+            <span class="top-performer-stat-label">7D Profit</span>
+            <span class="top-performer-stat-value" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${p7 >= 0 ? '+' : ''}${formatMoney(p7)}</span>
+          </div>
+          <div class="top-performer-stat">
+            <span class="top-performer-stat-label">30D Profit</span>
+            <span class="top-performer-stat-value">${formatMoney(p30)}</span>
+          </div>
+          
+          <div class="top-performer-accum">Win Rate: ${Number(w.winRate || 0).toFixed(1)}% · ${w.activity || 'N/A'}</div>
+        </article>
+      `;
+    }).join("");
+  } catch (renderErr) {
+    console.error("[RENDER ERROR] renderTrackedWallets failed:", renderErr);
+    el.trackedWalletsGrid.innerHTML = `<div class="trade-meta bad">Error rendering wallets: ${renderErr.message}</div>`;
   }
-
-  if (el.trackedWalletCount) el.trackedWalletCount.textContent = `${wallets.length} Wallets`;
-
-  el.trackedWalletsGrid.innerHTML = wallets.map(w => {
-    const p7 = Number(w.profit7d || 0);
-    const r7 = Number(w.roi7d || 0);
-    const p30 = Number(w.profit30d || 0);
-    
-    const profitTone = p7 >= 0 ? "good" : "bad";
-    const network = String(w.network || "solana").toLowerCase();
-    
-    // Icon mapping
-    let networkIcon = "◈";
-    if (network === "bsc") networkIcon = "🔶";
-    if (network === "base") networkIcon = "🔵";
-    if (w.type === "CEX") networkIcon = "🏦";
-
-    const tags = Array.isArray(w.tags) ? w.tags : [];
-    const tagHtml = tags.map(t => `<span class="page-badge page-badge-monitor" style="font-size: 0.6rem; opacity: 0.8">${t}</span>`).join("");
-
-    return `
-      <article class="top-performer-card" style="border-left: 3px solid ${p7 >= 0 ? '#4ade80' : '#f87171'}">
-        <div class="top-performer-multiplier" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${r7 >= 0 ? '+' : ''}${r7.toFixed(0)}%</div>
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem">
-          <span style="font-size: 1.2rem">${networkIcon}</span>
-          <span class="top-performer-symbol">${w.alias || shortenMint(w.id)}</span>
-        </div>
-        <code class="top-performer-ca" title="${w.id}">${w.id}</code>
-        
-        <div style="display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap">
-          <span class="page-badge page-badge-cex" style="font-size: 0.6rem">${w.type}</span>
-          ${tagHtml}
-        </div>
-
-        <div class="top-performer-stat">
-          <span class="top-performer-stat-label">7D Profit</span>
-          <span class="top-performer-stat-value" style="color: ${p7 >= 0 ? '#4ade80' : '#f87171'}">${p7 >= 0 ? '+' : ''}$${formatMoney(p7)}</span>
-        </div>
-        <div class="top-performer-stat">
-          <span class="top-performer-stat-label">30D Profit</span>
-          <span class="top-performer-stat-value">$${formatMoney(p30)}</span>
-        </div>
-        
-        <div class="top-performer-accum">Win Rate: ${Number(w.winRate || 0).toFixed(1)}% · ${w.activity || 'N/A'}</div>
-      </article>
-    `;
-  }).join("");
 }
 
 function renderTopMetrics(spot, futures) {
@@ -1968,11 +2131,137 @@ function renderCexPaperTrading(cex) {
   }
 }
 
+async function fetchUsers() {
+  const pendingListEl = document.getElementById("pendingUsersList");
+  const allListEl = document.getElementById("allUsersList");
+  if (!pendingListEl || !allListEl) return;
+
+  // RUN DIAGNOSTICS
+  checkAdminConnectivity();
+
+  try {
+    // 1. Fetch Pending
+    console.log("[ADMIN] Fetching pending users...");
+    const resPending = await fetchWithAuth("/api/admin/users/pending");
+    console.log("[ADMIN] Pending status:", resPending.status);
+    
+    if (!resPending.ok) {
+        console.error("[ADMIN] Failed to fetch pending:", resPending.status);
+        pendingListEl.innerHTML = `<p class="bad">Error ${resPending.status}: Gagal mengambil data pending.</p>`;
+    } else {
+        const pendingUsers = await resPending.json().catch(e => {
+            console.error("[ADMIN] JSON Parse Error (Pending):", e.message);
+            return null;
+        });
+
+        if (!pendingUsers) {
+            pendingListEl.innerHTML = `<p class="bad">Error: Server mengembalikan format non-JSON.</p>`;
+        } else if (pendingUsers.length === 0) {
+          pendingListEl.innerHTML = `
+            <div class="briefing-empty">
+                <p class="briefing-empty-title">Tidak ada user pending</p>
+            </div>
+          `;
+        } else {
+          pendingListEl.innerHTML = pendingUsers.map(u => `
+            <div class="panel" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(255,255,255,0.02); margin-bottom: 0.75rem;">
+              <div>
+                  <div style="font-weight: 700; font-size: 1rem; color: var(--text);">${u.username}</div>
+                  <div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">
+                      ID: ${u.id} · Role: ${u.role} · Mendaftar: ${formatTime(u.created_at)}
+                  </div>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button onclick="approveUser(${u.id}, '${u.username}')" class="btn-dex" style="background: var(--success); color: #000; border-color: var(--success); font-weight: 700;">
+                    Izinkan
+                </button>
+                <button onclick="deleteUser(${u.id}, '${u.username}')" class="btn-blacklist" style="border-radius: 6px; width: auto; padding: 0 0.75rem; height: 2.2rem; font-size: 0.75rem;">
+                    Hapus
+                </button>
+              </div>
+            </div>
+          `).join("");
+        }
+    }
+
+    // 2. Fetch All
+    console.log("[ADMIN] Fetching all users...");
+    const resAll = await fetchWithAuth("/api/admin/users/all");
+    console.log("[ADMIN] All users status:", resAll.status);
+
+    if (!resAll.ok) {
+        console.error("[ADMIN] Failed to fetch all users:", resAll.status);
+        allListEl.innerHTML = `<p class="bad">Error ${resAll.status}: Gagal mengambil data user.</p>`;
+    } else {
+        const allUsers = await resAll.json().catch(e => {
+            console.error("[ADMIN] JSON Parse Error (All):", e.message);
+            return null;
+        });
+
+        if (!allUsers) {
+             allListEl.innerHTML = `<p class="bad">Error: Server mengembalikan format non-JSON.</p>`;
+        } else if (allUsers.length === 0) {
+          allListEl.innerHTML = `<p class="muted">Belum ada user di database.</p>`;
+        } else {
+          allListEl.innerHTML = allUsers.map(u => {
+            const isCurrent = currentUser && currentUser.username === u.username;
+            return `
+            <div class="panel" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(255,255,255,0.02); margin-bottom: 0.75rem; border-left: 3px solid ${u.status === 'APPROVED' ? 'var(--success)' : 'var(--muted)'};">
+              <div>
+                  <div style="font-weight: 700; font-size: 1rem; color: var(--text);">${u.username} ${isCurrent ? '<span style="font-size: 0.7rem; color: var(--accent);">(You)</span>' : ''}</div>
+                  <div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">
+                      Role: <strong>${u.role}</strong> · Status: <span style="color: ${u.status === 'APPROVED' ? 'var(--success)' : 'var(--accent-strong)'}">${u.status}</span>
+                  </div>
+              </div>
+              <div>
+                ${!isCurrent ? `
+                <button onclick="deleteUser(${u.id}, '${u.username}')" class="btn-blacklist" style="border-radius: 6px; width: auto; padding: 0 0.75rem; height: 2.2rem; font-size: 0.75rem;">
+                    Hapus Akun
+                </button>
+                ` : '<span style="font-size: 0.7rem; color: var(--muted);">Self-protection active</span>'}
+              </div>
+            </div>
+          `}).join("");
+        }
+    }
+  } catch (err) {
+    console.error("Fetch users error:", err);
+  }
+}
+
+window.approveUser = async (id, username) => {
+  if (!confirm(`Setujui pendaftaran ${username}?`)) return;
+  try {
+    const res = await fetchWithAuth(`/api/admin/users/approve/${id}`, { method: 'POST' });
+    if (res.ok) {
+      ui.toast(`User ${username} berhasil disetujui`, "success");
+      fetchUsers();
+    } else {
+      const data = await res.json();
+      ui.toast(data.error || "Gagal menyetujui user", "error");
+    }
+  } catch (err) { ui.toast(err.message, "error"); }
+};
+
+window.deleteUser = async (id, username) => {
+  if (!confirm(`HAPUS PERMANEN user ${username}? Tindakan ini tidak bisa dibatalkan.`)) return;
+  try {
+    const res = await fetchWithAuth(`/api/admin/users/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      ui.toast(`User ${username} telah dihapus`, "blacklist");
+      fetchUsers();
+    } else {
+      const data = await res.json();
+      ui.toast(data.error || "Gagal menghapus user", "error");
+    }
+  } catch (err) { ui.toast(err.message, "error"); }
+};
+
 function switchPage(pageId) {
-  const allowed = ["phoenix", "monitor", "track-wallet", "solana-paper", "cex-spike", "trading"];
+  const allowed = ["phoenix", "monitor", "track-wallet", "solana-paper", "cex-spike", "trading", "users"];
   const target = allowed.includes(pageId) ? pageId : "phoenix";
 
-  console.log(`[CEX DEBUG] Switching to page: ${target}`);
+  console.log(`[NAV] Switching to page: ${target}`);
 
   el.pageViews.forEach((view) => {
     const isActive = view.id === `page-${target}`;
@@ -1989,9 +2278,13 @@ function switchPage(pageId) {
   document.title = PAGE_TITLES[target] || PAGE_TITLES.monitor;
   window.location.hash = target;
 
+  if (target === "users") {
+    fetchUsers();
+  }
+
   // Trigger immediate refresh if CEX or Solana paper is opened
   if (target === "cex-spike" || target === "solana-paper") {
-    loadDashboard().catch(err => console.error("[CEX DEBUG] Switch-load failed:", err));
+    loadDashboard().catch(err => console.error("[NAV] Switch-load failed:", err));
   }
 }
 
@@ -2022,7 +2315,7 @@ function renderAccountPanels(spot, futures) {
 
 async function fetchCexPaperPayload() {
   try {
-    const response = await fetch("/api/cex-paper", { cache: "no-store" });
+    const response = await fetchWithAuth("/api/cex-paper", { cache: "no-store" });
     if (!response.ok) return null;
     const payload = await response.json();
     if (payload?.error) return null;
@@ -2034,7 +2327,7 @@ async function fetchCexPaperPayload() {
 
 async function loadDashboard() {
   if (el.generatedAt) el.generatedAt.textContent = "Refreshing...";
-  const dashboardResponse = await fetch(dashboardUrl, { cache: "no-store" });
+  const dashboardResponse = await fetchWithAuth(dashboardUrl, { cache: "no-store" });
 
   const payload = await dashboardResponse.json();
   console.log("[PAYLOAD AUDIT] Nama-nama key dari API:", Object.keys(payload));
@@ -2103,9 +2396,8 @@ function attachTokenDetailsHandlers() {
 }
 
 async function postBlacklistToken(body) {
-  const response = await fetch("/api/blacklist", {
+  const response = await fetchWithAuth("/api/blacklist", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const payload = await response.json();
@@ -2114,9 +2406,8 @@ async function postBlacklistToken(body) {
 }
 
 async function postClosePaperPosition(body) {
-  const response = await fetch("/api/close-position", {
+  const response = await fetchWithAuth("/api/close-position", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const payload = await response.json();
@@ -2142,6 +2433,8 @@ async function postClosePaperPosition(body) {
 }
 
 async function closeSolanaPaperPosition(button) {
+  if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa trading", "error");
+  
   const mint = button.getAttribute("data-mint");
   const id = button.getAttribute("data-position-id");
   const currentPrice = Number(button.getAttribute("data-current-price"));
@@ -2181,6 +2474,8 @@ async function closeSolanaPaperPosition(button) {
 }
 
 async function blacklistToken(button) {
+  if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak memiliki akses", "error");
+
   const mint = button.getAttribute("data-blacklist-mint");
   const symbol = button.getAttribute("data-blacklist-symbol") || "UNKNOWN";
   
@@ -2230,6 +2525,8 @@ async function blacklistToken(button) {
 }
 
 async function closeCexPaperPosition(button) {
+  if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa trading", "error");
+
   const tradeId = button.getAttribute("data-trade-id");
   const symbol = button.getAttribute("data-symbol");
   const originalLabel = button.textContent;
@@ -2327,16 +2624,22 @@ if (manualBuyForm) {
   manualBuyForm.addEventListener("submit", (event) => {
     event.preventDefault(); // Prevent default form submission
     
+    if (currentUser.role === 'GUEST') {
+        ui.toast("GUEST tidak memiliki akses trading", "error");
+        return;
+    }
+    if (currentUser.status !== 'APPROVED') {
+        ui.toast("Akun Anda belum di-approve", "warning");
+        return;
+    }
+
     const symbol = document.getElementById("manualBuySymbol").textContent;
     const address = document.getElementById("manualBuyAddress").value;
     const price = document.getElementById("manualBuyPrice").value;
     const amount = document.querySelector('input[name="buyAmount"]:checked').value;
     
-    fetch('/api/paper-trade/manual-buy', {
+    fetchWithAuth('/api/paper-trade/manual-buy', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         symbol: symbol,
         token_address: address,
@@ -2351,10 +2654,10 @@ if (manualBuyForm) {
         document.getElementById("manualBuyDialog").close();
         loadDashboard(); // Refresh UI
       } else {
-        alert("Gagal: " + data.error);
+        ui.toast("Gagal: " + (data.error || "Unknown error"), "error");
       }
     })
-    .catch(err => alert("Error: " + err.message));
+    .catch(err => ui.toast("Error: " + err.message, "error"));
   });
 }
 
@@ -2441,6 +2744,7 @@ function resolvePageFromHash() {
   if (hash === "track-wallet" || hash === "track") return "track-wallet";
   if (hash === "solana-paper" || hash === "paper") return "solana-paper";
   if (hash === "cex-spike" || hash === "cex") return "cex-spike";
+  if (hash === "users" || hash === "admin") return "users";
   return "phoenix";
 }
 
