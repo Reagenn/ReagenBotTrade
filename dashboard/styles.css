@@ -2788,17 +2788,20 @@ h2 {
     display: none;
     flex-direction: column;
     width: 100%;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(12, 20, 32, 0.98);
     padding: 0.75rem;
     border-radius: 1rem;
-    border: 1px solid var(--line);
+    border: 1px solid var(--line-strong);
     margin-top: 0.5rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     animation: slideDown 0.3s ease forwards;
+    position: relative;
+    z-index: 100;
   }
 
-  /* JavaScript uses .is-active on navMenuToggle, we show nav-links when active */
+  /* JavaScript toggles .is-active on navMenuToggle, we use that to show the dropdown */
   .nav-menu-toggle.is-active ~ .nav-links {
-    display: flex;
+    display: flex !important;
   }
 
   @keyframes slideDown {
