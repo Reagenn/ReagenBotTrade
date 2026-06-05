@@ -280,21 +280,25 @@ async function buildDashboardPayload() {
       solanaPaper.stats = {
         totalTrades: livePaperStats.total_trades || 0,
         profitTrades: livePaperStats.profit_trades || 0,
+        lossTrades: livePaperStats.loss_trades || 0,
         winRate: livePaperStats.win_rate || 0,
-        netPnlSol: livePaperStats.net_pnl_sol || 0
+        netPnlSol: livePaperStats.net_pnl_sol || 0,
+        totalInvestedSol: livePaperStats.total_invested_sol || 0
       };
     }
 
     solanaPaper.activePositions = dbSolanaPositions.map(p => ({
       id: p.id, tokenAddress: p.token_address, symbol: p.symbol,
       entryPrice: p.entry_price, currentPrice: p.current_price, amountSol: p.amount_sol,
+      targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
       unrealizedPnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
     }));
 
     solanaPaper.tradeHistory = dbSolanaTrades.map(t => ({
       id: t.id, tokenAddress: t.token_address, symbol: t.symbol,
-      entryPrice: t.entry_price, exit_price: t.exit_price, amountSol: t.amount_sol,
-      pnlSol: t.pnl_sol, pnlPct: t.pnl_pct, result: t.result
+      entryPrice: t.entry_price, exitPrice: t.exit_price, amountSol: t.amount_sol,
+      pnlSol: t.pnl_sol, pnlPct: t.pnl_pct, result: t.result,
+      trigger: t.trigger_type, closedAt: t.closed_at
     }));
 
     const dbCexPositions = await dbManager.getActivePositions('cex');
@@ -304,6 +308,8 @@ async function buildDashboardPayload() {
     if (dbCexStats) {
       cexPaper.stats = {
         totalTrades: dbCexStats.total_trades || 0,
+        profitTrades: dbCexStats.profit_trades || 0,
+        lossTrades: dbCexStats.loss_trades || 0,
         winRate: dbCexStats.win_rate || 0,
         netPnlUsdt: dbCexStats.net_pnl_usdt || 0,
         balanceUsdt: await dbManager.getCexBalance()
@@ -312,12 +318,14 @@ async function buildDashboardPayload() {
 
     cexPaper.activeTrades = dbCexPositions.map(p => ({
       id: p.id, symbol: p.symbol, entryPrice: p.entry_price, currentPrice: p.current_price || p.entry_price,
-      amountUsdt: p.amount_usdt, pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
+      amountUsdt: p.amount_usdt, targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
+      pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
     }));
 
     cexPaper.tradeHistory = dbCexTrades.map(t => ({
       id: t.id, symbol: t.symbol, entryPrice: t.entry_price, exitPrice: t.exit_price,
-      amountUsdt: t.amount_usdt, pnlUsdt: t.pnl_usd, pnlPct: t.pnl_percent, result: t.result
+      amountUsdt: t.amount_usdt, pnlUsdt: t.pnl_usd, pnlPct: t.pnl_percent, result: t.result,
+      trigger: t.trigger_type, closedAt: t.closed_at
     }));
 
   } catch (e) {
@@ -350,6 +358,8 @@ app.get("/api/cex-paper", async (req, res) => {
     if (dbCexStats) {
       cexPaper.stats = {
         totalTrades: dbCexStats.total_trades || 0,
+        profitTrades: dbCexStats.profit_trades || 0,
+        lossTrades: dbCexStats.loss_trades || 0,
         winRate: dbCexStats.win_rate || 0,
         netPnlUsdt: dbCexStats.net_pnl_usdt || 0,
         balanceUsdt: await dbManager.getCexBalance()
@@ -358,12 +368,14 @@ app.get("/api/cex-paper", async (req, res) => {
 
     cexPaper.activeTrades = dbCexPositions.map(p => ({
       id: p.id, symbol: p.symbol, entryPrice: p.entry_price, currentPrice: p.current_price || p.entry_price,
-      amountUsdt: p.amount_usdt, pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
+      amountUsdt: p.amount_usdt, targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
+      pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
     }));
 
     cexPaper.tradeHistory = dbCexTrades.map(t => ({
       id: t.id, symbol: t.symbol, entryPrice: t.entry_price, exitPrice: t.exit_price,
-      amountUsdt: t.amount_usdt, pnlUsdt: t.pnl_usd, pnlPct: t.pnl_percent, result: t.result
+      amountUsdt: t.amount_usdt, pnlUsdt: t.pnl_usd, pnlPct: t.pnl_percent, result: t.result,
+      trigger: t.trigger_type, closedAt: t.closed_at
     }));
 
     res.json(cexPaper);
