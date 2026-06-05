@@ -325,7 +325,7 @@ let tokenDetailsState = {
 let walletRawData = [];
 let walletFilterState = {
   sort: "7D ROI ↓",
-  tags: ["wide"] // Matches the 'is-active' class in index.html
+  tags: [] // Default empty array means "All" for all categories
 };
 
 function initWalletFilters() {
