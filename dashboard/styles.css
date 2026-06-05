@@ -165,11 +165,16 @@ body {
   margin-bottom: 0.2rem;
 }
 
+.nav-brand-eyebrow {
+  font-size: 0.55rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
+
 .nav-brand-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1;
+  font-size: 0.95rem;
 }
 
 .nav-menu-toggle {
