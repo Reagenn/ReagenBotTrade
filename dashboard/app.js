@@ -321,6 +321,97 @@ let tokenDetailsState = {
   activeSeries: HOLDER_CHART_SERIES.map((series) => series.key),
 };
 
+// Wallet Filter State
+let walletRawData = [];
+let walletFilterState = {
+  sort: "7D ROI ↓",
+  tags: ["wide"] // Default active tags from UI
+};
+
+function initWalletFilters() {
+  const filtersEl = document.querySelector(".wallet-filters");
+  if (!filtersEl) return;
+
+  filtersEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".filter-chip");
+    if (!btn) return;
+
+    const group = btn.closest(".filter-chips");
+    const category = group ? group.dataset.filterCategory : null;
+
+    if (!category) {
+      // This must be the "Sort" group
+      const parent = btn.closest(".filter-group");
+      parent.querySelectorAll(".filter-chip").forEach(b => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      walletFilterState.sort = btn.textContent.trim();
+    } else {
+      // This is a tag category
+      const tag = btn.textContent.trim();
+      
+      if (tag.startsWith("All")) {
+        // Reset this category
+        group.querySelectorAll(".filter-chip").forEach(b => b.classList.remove("is-active", "is-active-blue"));
+        const colorClass = (tag.includes("dur") || tag.includes("market")) ? "is-active-blue" : "is-active";
+        btn.classList.add(colorClass);
+        
+        // Remove all tags belonging to this category from state
+        const sibs = Array.from(group.querySelectorAll(".filter-chip")).map(b => b.textContent.trim());
+        walletFilterState.tags = walletFilterState.tags.filter(t => !sibs.includes(t));
+      } else {
+        const colorClass = (category === "dur" || category === "market") ? "is-active-blue" : "is-active";
+        btn.classList.toggle(colorClass);
+        const isActive = btn.classList.contains("is-active") || btn.classList.contains("is-active-blue");
+        
+        if (isActive) {
+          if (!walletFilterState.tags.includes(tag)) walletFilterState.tags.push(tag);
+          // Remove "All" active state if a specific tag is clicked
+          group.querySelector(".filter-chip:first-child").classList.remove("is-active", "is-active-blue");
+        } else {
+          walletFilterState.tags = walletFilterState.tags.filter(t => t !== tag);
+          // If no tags left in this category, reactivate "All"
+          const categoryActive = Array.from(group.querySelectorAll(".filter-chip")).some(b => !b.textContent.startsWith("All") && (b.classList.contains("is-active") || b.classList.contains("is-active-blue")));
+          if (!categoryActive) {
+            const allBtn = group.querySelector(".filter-chip:first-child");
+            const allColorClass = (allBtn.textContent.includes("dur") || allBtn.textContent.includes("market")) ? "is-active-blue" : "is-active";
+            allBtn.classList.add(allColorClass);
+          }
+        }
+      }
+    }
+
+    renderTrackedWallets(walletRawData);
+  });
+}
+
+function applyWalletFiltersAndSort(wallets) {
+  let filtered = [...wallets];
+
+  // 1. Apply Tags Filter
+  if (walletFilterState.tags.length > 0) {
+    filtered = filtered.filter(w => {
+      const wTags = Array.isArray(w.tags) ? w.tags : [];
+      return walletFilterState.tags.every(requiredTag => {
+        if (requiredTag.startsWith("All")) return true;
+        return wTags.some(t => t.toLowerCase() === requiredTag.toLowerCase());
+      });
+    });
+  }
+
+  // 2. Apply Sort
+  const s = walletFilterState.sort;
+  filtered.sort((a, b) => {
+    if (s.includes("7D ROI")) return (b.roi7d || 0) - (a.roi7d || 0);
+    if (s.includes("30D ROI")) return (b.roi30d || 0) - (a.roi30d || 0);
+    if (s.includes("7D Profit")) return (b.profit7d || 0) - (a.profit7d || 0);
+    if (s.includes("30D Profit")) return (b.profit30d || 0) - (a.profit30d || 0);
+    if (s.includes("Avg Invested")) return (b.avgInvested || 0) - (a.avgInvested || 0);
+    return 0;
+  });
+
+  return filtered;
+}
+
 function formatMoney(value) {
   if (!Number.isFinite(value)) return "-";
   const abs = Math.abs(Number(value));
@@ -481,19 +572,24 @@ function summarizeLedger(ledger) {
 function renderTrackedWallets(wallets) {
   if (!el.trackedWalletsGrid) return;
   
+  // Save for re-filtering
+  if (wallets !== walletRawData) walletRawData = wallets;
+
   try {
-    if (!wallets || wallets.length === 0) {
-      el.trackedWalletsGrid.innerHTML = `<div class="briefing-empty"><p class="briefing-empty-title">Belum ada dompet yang dipantau.</p></div>`;
+    const displayWallets = applyWalletFiltersAndSort(wallets || []);
+
+    if (!displayWallets || displayWallets.length === 0) {
+      el.trackedWalletsGrid.innerHTML = `<div class="briefing-empty"><p class="briefing-empty-title">Belum ada dompet yang sesuai filter.</p></div>`;
       if (el.trackedWalletCount) el.trackedWalletCount.textContent = "0 Wallets";
       return;
     }
 
-    if (el.trackedWalletCount) el.trackedWalletCount.textContent = `${wallets.length} Wallets`;
+    if (el.trackedWalletCount) el.trackedWalletCount.textContent = `${displayWallets.length} Wallets`;
 
     // Redesigned Grid Container
     el.trackedWalletsGrid.className = "tracked-wallet-grid";
 
-    el.trackedWalletsGrid.innerHTML = wallets.map(w => {
+    el.trackedWalletsGrid.innerHTML = displayWallets.map(w => {
       const p7 = Number(w.profit7d || 0);
       const r7 = Number(w.roi7d || 0);
       const p30 = Number(w.profit30d || 0);
@@ -2827,6 +2923,8 @@ if (el.closeFuturesButton) {
     });
   });
 }
+
+initWalletFilters();
 
 loadDashboard().catch((error) => {
   if (el.generatedAt) el.generatedAt.textContent = `Initial load failed: ${error.message}`;
