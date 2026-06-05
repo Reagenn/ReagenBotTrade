@@ -2769,39 +2769,77 @@ h2 {
   .top-nav {
     padding: 0.75rem 1rem;
     border-radius: 1rem;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0.5rem;
+    overflow: visible !important;
   }
 
   .nav-brand {
-    width: 100%;
-    justify-content: space-between;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
   }
 
   .nav-menu-toggle {
     display: flex;
-    z-index: 101;
+    order: 2;
+    z-index: 1001;
+    margin-left: 0.5rem;
   }
 
   .nav-links {
-    display: none;
-    flex-direction: column;
+    display: none !important;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
     width: 100%;
-    background: rgba(12, 20, 32, 0.98);
-    padding: 0.75rem;
-    border-radius: 1rem;
+    flex-direction: column;
+    background: #0c1420;
+    padding: 1rem;
+    border-radius: 0 0 1rem 1rem;
     border: 1px solid var(--line-strong);
-    margin-top: 0.5rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    animation: slideDown 0.3s ease forwards;
-    position: relative;
-    z-index: 100;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+    z-index: 1000;
+    gap: 0.5rem;
+    margin-top: 2px;
   }
 
-  /* JavaScript toggles .is-active on navMenuToggle, we use that to show the dropdown */
-  .nav-menu-toggle.is-active ~ .nav-links {
+  /* When navLinks has .is-active (toggled by JS), show it */
+  .nav-links.is-active {
     display: flex !important;
+  }
+
+  .nav-link {
+    width: 100%;
+    padding: 0.85rem 1.25rem;
+    background: rgba(255,255,255,0.03);
+    border-radius: 0.75rem;
+    justify-content: flex-start;
+    color: var(--text);
+  }
+
+  .nav-actions {
+    display: flex;
+    order: 3;
+    width: auto;
+    gap: 0.25rem;
+    margin-left: 0.5rem;
+  }
+
+  .balance-badge {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.7rem;
+  }
+
+  .status-pill {
+    display: none;
   }
 
   @keyframes slideDown {
