@@ -2783,13 +2783,14 @@ h2 {
     display: flex;
     align-items: center;
     min-width: 0;
+    order: 1;
   }
 
   .nav-menu-toggle {
     display: flex;
-    order: 2;
+    order: 3;
     z-index: 1001;
-    margin-left: 0.5rem;
+    margin-left: 0.75rem;
   }
 
   .nav-links {
@@ -2827,10 +2828,10 @@ h2 {
 
   .nav-actions {
     display: flex;
-    order: 3;
+    order: 2;
     width: auto;
     gap: 0.25rem;
-    margin-left: 0.5rem;
+    margin-left: auto;
   }
 
   .balance-badge {
