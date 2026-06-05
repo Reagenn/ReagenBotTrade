@@ -2784,6 +2784,7 @@ h2 {
   }
 
   .nav-brand {
+    order: 1;
     display: flex;
     align-items: center;
     min-width: 0;
@@ -2822,11 +2823,13 @@ h2 {
 
   .nav-actions {
     display: flex;
+    order: 2;
     justify-content: flex-end;
     align-items: center;
     gap: 0.25rem;
     min-width: 0;
     overflow: hidden;
+    margin-left: auto; /* Push to center/right but keep before menu */
   }
 
   /* Extremely Compact User Badge for Mobile */
@@ -2864,8 +2867,9 @@ h2 {
 
   .nav-menu-toggle {
     display: flex;
+    order: 3; /* Far right */
     z-index: 1001;
-    margin-left: 0.25rem;
+    margin-left: 0.5rem;
     flex-shrink: 0;
   }
 
