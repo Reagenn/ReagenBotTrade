@@ -190,6 +190,12 @@ class SimulationEngine {
         // Update current price in DB using encapsulated method
         await dbManager.updatePositionPrice(position.id, priceNum).catch(() => {});
 
+        // Skip TP/SL if on HOLD
+        if (posRow.is_hold === 1) {
+          stillOpenCount++;
+          continue;
+        }
+
         if (priceNum >= position.targetTP) {
           const closed = await this.closePosition(position, priceNum, "TP");
           closedThisTick.push(closed);

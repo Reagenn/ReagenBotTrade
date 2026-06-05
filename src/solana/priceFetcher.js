@@ -320,7 +320,10 @@ async function getUIPriceBatch(addresses) {
           if (bestPair) {
             prices[mint] = {
                 usd: Number(bestPair.priceUsd),
-                change24h: Number(bestPair.priceChange?.h24 || 0)
+                change24h: Number(bestPair.priceChange?.h24 || 0),
+                marketCap: Number(bestPair.fdv || bestPair.marketCap || 0),
+                volume24h: Number(bestPair.volume?.h24 || 0),
+                liquidityUsd: Number(bestPair.liquidity?.usd || 0)
             };
           }
         });

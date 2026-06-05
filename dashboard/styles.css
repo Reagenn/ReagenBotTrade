@@ -3290,3 +3290,66 @@ h2 {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Solana Paper - Hold & Target custom styles */
+.paper-position-card.is-holding {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.hold-badge {
+  background: #fbbf24;
+  color: #000;
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  vertical-align: middle;
+}
+
+.paper-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.paper-action-btn {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94b2cf;
+}
+
+.btn-hold {
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fcd34d;
+}
+.btn-hold:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: rgba(251, 191, 36, 0.6);
+}
+
+.btn-target {
+  border-color: rgba(100, 108, 255, 0.4);
+  color: #a5b4fc;
+}
+.btn-target:hover:not(:disabled) {
+  background: rgba(100, 108, 255, 0.15);
+  border-color: rgba(100, 108, 255, 0.7);
+}
+
+.paper-close-btn {
+  grid-column: span 2;
+  margin-top: 0 !important;
+}
+
+.paper-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -907,7 +907,7 @@ function renderSignalRows(target, candidatesRaw, emptyMessage, type) {
     const logoUrl = pair.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${candidate.token?.mint || ""}.png`;
 
     return `
-      <article class="signal-row">
+      <article class="signal-row" data-briefing-mint="${candidate.token?.mint || ""}">
        <div class="signal-col">
          <div class="trade-top">
            <span class="trade-side ${tone}">#${index + 1} ${candidate.status}</span>
@@ -929,12 +929,12 @@ function renderSignalRows(target, candidatesRaw, emptyMessage, type) {
         <div class="signal-col">
           <div class="signal-kicker">${type === "whale" ? "Whale Flow 24h" : "Net Flow 24h"}</div>
           <div class="signal-value">${flowValue}</div>
-          <div class="signal-subvalue">Liquidity ${formatMoney(pair.liquidityUsd || 0)}</div>
+          <div class="signal-subvalue">Liq <span data-live="liquidity">${formatMoney(pair.liquidityUsd || 0)}</span> | MC <span data-live="marketcap">${formatMoney(pair.marketCap || 0)}</span></div>
         </div>
         <div class="signal-col">
           <div class="signal-kicker">Price / 24H</div>
-          <div class="signal-value">${formatMoney(pair.priceUsd || 0)}</div>
-          <div class="signal-subvalue">${formatPercent(pair.priceChange24h || 0)} | Score ${formatNumber(candidate.score || 0, 0)}</div>
+          <div class="signal-value" data-live-price>${formatMoney(pair.priceUsd || 0)}</div>
+          <div class="signal-subvalue"><span data-live-pricechange>${formatPercent(pair.priceChange24h || 0)}</span> | Score ${formatNumber(candidate.score || 0, 0)}</div>
         </div>
         <div class="signal-col">
           <div class="signal-kicker">Action</div>
@@ -1650,7 +1650,7 @@ function renderTimeframeMonitorList(payload) {
           const logoUrl = candidate.pair?.info?.imageUrl || `https://dd.dexscreener.com/ds-data/tokens/solana/${candidate.token?.mint || ""}.png`;
 
           return `
-            <div class="timeframe-row ${isDiscovery ? 'timeframe-row-discovery' : ''}">
+            <div class="timeframe-row ${isDiscovery ? 'timeframe-row-discovery' : ''}" data-briefing-mint="${candidate.token?.mint || ""}">
               <div class="timeframe-row-main">
                 <div class="timeframe-token-ident">
                   <img class="timeframe-token-icon" src="${logoUrl}" alt="${candidate.token?.symbol || ""}" onerror="this.src='https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png'; this.onerror=null;">
@@ -1659,7 +1659,15 @@ function renderTimeframeMonitorList(payload) {
                 <span class="timeframe-win ${winTone}">${formatNumber(winRate, 1)}% WR</span>
               </div>
               <div class="timeframe-row-meta">
-                <span>${metrics.accumulationHourWIB || candidate.signals?.accumulationHourWIB || "—"}</span>
+                <span>$ <span data-live-price>${formatMoney(candidate.pair?.priceUsd || 0)}</span></span>
+                <span data-live-pricechange class="${(candidate.pair?.priceChange24h || 0) >= 0 ? 'good' : 'bad'}">${formatPercent(candidate.pair?.priceChange24h || 0)}</span>
+                <span>MC <span data-live="marketcap">${formatMoney(candidate.pair?.marketCap || 0)}</span></span>
+              </div>
+              <div class="timeframe-row-meta">
+                <span>Vol <span data-live="volume">${formatMoney(candidate.pair?.volume24hUsd || 0)}</span></span>
+                <span>Liq <span data-live="liquidity">${formatMoney(candidate.pair?.liquidityUsd || 0)}</span></span>
+              </div>
+              <div class="timeframe-row-meta">
                 <span>Score ${formatNumber(candidate.score || 0, 0)}</span>
                 <span>Smart ${candidate.smart_money_count || 0}</span>
                 ${candidate.insider_count > 0 ? `<span class="tag-insider-xs">Ins ${candidate.insider_count}</span>` : ""}
@@ -2113,10 +2121,16 @@ function renderSolanaPaperTrading(paper, balanceFromPayload) {
       el.paperOpenList.innerHTML = open
         .map((pos) => {
           const pnlTone = Number(pos.unrealizedPnlPct || 0) >= 0 ? "good" : "bad";
+          const holdClass = pos.isHold ? "is-holding" : "";
+          const holdLabel = pos.isHold ? "Release Hold" : "Hold Position";
+          
           return `
-            <article class="paper-position-card" data-pos-mint="${pos.tokenAddress || ""}" data-entry-price="${pos.entryPrice || 0}">
+            <article class="paper-position-card ${holdClass}" data-pos-mint="${pos.tokenAddress || ""}" data-entry-price="${pos.entryPrice || 0}">
               <div class="paper-position-head">
-                <strong>${pos.symbol || "-"}</strong>
+                <div style="display: flex; align-items: center; gap: 0.5rem">
+                  <strong>${pos.symbol || "-"}</strong>
+                  ${pos.isHold ? '<span class="hold-badge">HOLD</span>' : ""}
+                </div>
                 <span id="pnl-sol-${pos.id}" class="paper-position-pnl ${pnlTone}">${formatNumber(pos.unrealizedPnlPct || 0, 1)}%</span>
               </div>
               <div class="paper-position-meta">
@@ -2129,16 +2143,37 @@ function renderSolanaPaperTrading(paper, balanceFromPayload) {
                 <span>SL $${formatMoney(pos.targetSL)}</span>
                 <span>${formatAge(pos.openedAt)}</span>
               </div>
-              <button
-                type="button"
-                class="paper-close-btn"
-                data-close-solana-paper
-                data-mint="${pos.tokenAddress || ""}"
-                data-position-id="${pos.id || ""}"
-                data-symbol="${pos.symbol || ""}"
-                data-current-price="${pos.currentPrice || pos.entryPrice || 0}"
-                data-pnl-pct="${pos.unrealizedPnlPct || 0}"
-              >Tutup posisi</button>
+              
+              <div class="paper-card-actions">
+                <button
+                  type="button"
+                  class="paper-action-btn btn-hold"
+                  data-hold-solana-paper
+                  data-position-id="${pos.id || ""}"
+                  data-is-hold="${pos.isHold ? "true" : "false"}"
+                >${holdLabel}</button>
+
+                <button
+                  type="button"
+                  class="paper-action-btn btn-target"
+                  data-target-solana-paper
+                  data-position-id="${pos.id || ""}"
+                  data-symbol="${pos.symbol || ""}"
+                  data-tp="${pos.targetTP}"
+                  data-sl="${pos.targetSL}"
+                >Set TP/SL</button>
+
+                <button
+                  type="button"
+                  class="paper-close-btn"
+                  data-close-solana-paper
+                  data-mint="${pos.tokenAddress || ""}"
+                  data-position-id="${pos.id || ""}"
+                  data-symbol="${pos.symbol || ""}"
+                  data-current-price="${pos.currentPrice || pos.entryPrice || 0}"
+                  data-pnl-pct="${pos.unrealizedPnlPct || 0}"
+                >Tutup posisi</button>
+              </div>
             </article>
           `;
         })
@@ -2680,6 +2715,53 @@ async function closeSolanaPaperPosition(button) {
   }
 }
 
+async function toggleSolanaPaperHold(button) {
+  if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa mengubah status hold", "error");
+
+  const id = button.getAttribute("data-position-id");
+  const isCurrentlyHolding = button.getAttribute("data-is-hold") === "true";
+  const newHoldStatus = !isCurrentlyHolding;
+  
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = "...";
+
+  try {
+    const response = await fetchWithAuth("/api/solana-paper/toggle-hold", {
+      method: "POST",
+      body: JSON.stringify({ id, isHold: newHoldStatus }),
+    });
+
+    if (response.ok) {
+      ui.toast(`Status HOLD posisi ${id} berhasil di${newHoldStatus ? "aktifkan" : "matikan"}.`);
+      await loadDashboard();
+    } else {
+      const error = await response.json();
+      throw new Error(error.error || "Gagal mengubah status hold");
+    }
+  } catch (err) {
+    ui.toast(err.message, "error");
+    button.disabled = false;
+    button.textContent = originalLabel;
+  }
+}
+
+function openUpdateTargetsDialog(button) {
+  if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa mengubah target", "error");
+
+  const id = button.getAttribute("data-position-id");
+  const symbol = button.getAttribute("data-symbol");
+  const tp = button.getAttribute("data-tp");
+  const sl = button.getAttribute("data-sl");
+
+  document.getElementById("targetPositionId").value = id;
+  document.getElementById("targetSymbolDisplay").textContent = symbol;
+  document.getElementById("targetTPInput").value = tp;
+  document.getElementById("targetSLInput").value = sl;
+
+  document.getElementById("updatePaperTargetsDialog").showModal();
+}
+
 async function blacklistToken(button) {
   if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak memiliki akses", "error");
 
@@ -2868,6 +2950,45 @@ if (manualBuyForm) {
   });
 }
 
+const updatePaperTargetsForm = document.getElementById("updatePaperTargetsForm");
+if (updatePaperTargetsForm) {
+  updatePaperTargetsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa mengubah target", "error");
+
+    const id = document.getElementById("targetPositionId").value;
+    const tp = document.getElementById("targetTPInput").value;
+    const sl = document.getElementById("targetSLInput").value;
+
+    const btn = updatePaperTargetsForm.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Menyimpan...";
+
+    try {
+      const response = await fetchWithAuth("/api/solana-paper/update-targets", {
+        method: "POST",
+        body: JSON.stringify({ id, tp, sl }),
+      });
+
+      if (response.ok) {
+        ui.toast("Target TP & SL berhasil diperbarui.");
+        document.getElementById("updatePaperTargetsDialog").close();
+        await loadDashboard();
+      } else {
+        const error = await response.json();
+        throw new Error(error.error || "Gagal memperbarui target");
+      }
+    } catch (err) {
+      ui.toast(err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  });
+}
+
 document.addEventListener("click", (event) => {
   const manualBuyBtn = event.target.closest('[data-action="manualBuy"]');
   if (manualBuyBtn) {
@@ -2886,6 +3007,18 @@ document.addEventListener("click", (event) => {
   const solanaCloseBtn = event.target.closest("[data-close-solana-paper]");
   if (solanaCloseBtn) {
     closeSolanaPaperPosition(solanaCloseBtn);
+    return;
+  }
+
+  const solanaHoldBtn = event.target.closest("[data-hold-solana-paper]");
+  if (solanaHoldBtn) {
+    toggleSolanaPaperHold(solanaHoldBtn);
+    return;
+  }
+
+  const solanaTargetBtn = event.target.closest("[data-target-solana-paper]");
+  if (solanaTargetBtn) {
+    openUpdateTargetsDialog(solanaTargetBtn);
     return;
   }
 
@@ -3040,6 +3173,16 @@ async function startRealtimePriceUpdates() {
             changeEl.textContent = formatPercent(p.change24h);
             changeEl.className = `briefing-stat-value ${p.change24h >= 0 ? "good" : "bad"}`;
           }
+
+          // Add live updates for Market Cap, Volume, and Liquidity
+          const mcEl = card.querySelector('[data-live="marketcap"]');
+          if (mcEl && p.marketCap) mcEl.textContent = `$${formatMoney(p.marketCap)}`;
+
+          const volEl = card.querySelector('[data-live="volume"]');
+          if (volEl && p.volume24h) volEl.textContent = `$${formatMoney(p.volume24h)}`;
+
+          const liqEl = card.querySelector('[data-live="liquidity"]');
+          if (liqEl && p.liquidityUsd) liqEl.textContent = `$${formatMoney(p.liquidityUsd)}`;
         }
       });
     } catch (e) {

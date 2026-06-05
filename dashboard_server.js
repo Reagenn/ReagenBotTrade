@@ -112,20 +112,24 @@ async function buildDashboardPayload() {
   let trackedWallets = [];
   try {
     const wallets = await dbManager.getTrackedWallets();
-    trackedWallets = wallets.map(w => ({
-      id: w.wallet_id,
-      type: w.type,
-      network: w.network,
-      alias: w.alias,
-      tags: JSON.parse(w.tags || "[]"),
-      profit7d: w.profit_7d,
-      roi7d: w.roi_7d,
-      profit30d: w.profit_30d,
-      roi30d: w.roi_30d,
-      avgInvested: w.avg_invested,
-      winRate: w.win_rate,
-      activity: w.activity
-    }));
+    for (const w of wallets) {
+      const history = await dbManager.getTrackedWalletHistory(w.wallet_id, 7);
+      trackedWallets.push({
+        id: w.wallet_id,
+        type: w.type,
+        network: w.network,
+        alias: w.alias,
+        tags: JSON.parse(w.tags || "[]"),
+        profit7d: w.profit_7d,
+        roi7d: w.roi_7d,
+        profit30d: w.profit_30d,
+        roi30d: w.roi_30d,
+        avgInvested: w.avg_invested,
+        winRate: w.win_rate,
+        activity: w.activity,
+        history: history.reverse().map(h => ({ date: h.date, profit: h.profit }))
+      });
+    }
   } catch(e) {
     console.error("[dashboard] Tracked wallets error:", e.message);
   }
@@ -291,6 +295,7 @@ async function buildDashboardPayload() {
       id: p.id, tokenAddress: p.token_address, symbol: p.symbol,
       entryPrice: p.entry_price, currentPrice: p.current_price, amountSol: p.amount_sol,
       targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
+      isHold: !!p.is_hold,
       unrealizedPnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
     }));
 
@@ -479,6 +484,24 @@ app.post("/api/paper-trade/manual-buy", verifyToken, requireApproved, requireRol
     await dbManager.saveOpenPosition('solana', position);
     await dbManager.updatePaperBalance(balance - amount);
     res.json({ success: true, entryPrice: price });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/solana-paper/toggle-hold", verifyToken, requireApproved, requireRole(['USER', 'ADMIN']), async (req, res) => {
+  try {
+    const { id, isHold } = req.body;
+    if (!id) return res.status(400).json({ error: "ID required" });
+    await dbManager.updatePositionHold(id, isHold);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/solana-paper/update-targets", verifyToken, requireApproved, requireRole(['USER', 'ADMIN']), async (req, res) => {
+  try {
+    const { id, tp, sl } = req.body;
+    if (!id) return res.status(400).json({ error: "ID required" });
+    await dbManager.updatePositionTargets(id, Number(tp), Number(sl));
+    res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

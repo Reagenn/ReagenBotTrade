@@ -146,8 +146,16 @@ async function initDb() {
       token_address TEXT, symbol TEXT, entry_price REAL, exit_price REAL, amount_sol REAL, pnl_sol REAL, pnl_pct REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME
     )`);
     await run(`CREATE TABLE IF NOT EXISTS solana_paper_positions (
-      id TEXT PRIMARY KEY, token_address TEXT, symbol TEXT, entry_price REAL, current_price REAL, amount_sol REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT
+      id TEXT PRIMARY KEY, token_address TEXT, symbol TEXT, entry_price REAL, current_price REAL, amount_sol REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT, is_hold INTEGER DEFAULT 0
     )`);
+
+    // Migration for solana_paper_positions
+    try {
+      const paperCols = await query("PRAGMA table_info(solana_paper_positions)");
+      if (!paperCols.some(c => c.name === 'is_hold')) {
+        await run("ALTER TABLE solana_paper_positions ADD COLUMN is_hold INTEGER DEFAULT 0");
+      }
+    } catch (e) { console.error("[DB] Paper positions migration error:", e.message); }
 
     // Tabel Paper Trading (CEX)
     await run(`CREATE TABLE IF NOT EXISTS cex_paper_positions (
@@ -299,6 +307,14 @@ async function initDb() {
       last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // Tabel Tracked Wallet History
+    await run(`CREATE TABLE IF NOT EXISTS tracked_wallet_history (
+      wallet_id TEXT,
+      date TEXT, -- YYYY-MM-DD
+      profit REAL DEFAULT 0,
+      PRIMARY KEY (wallet_id, date)
+    )`);
+
     await run(`INSERT OR IGNORE INTO bot_stats (id) VALUES (1)`);
 
     await run(`INSERT OR IGNORE INTO bot_stats (id) VALUES (2)`);
@@ -416,6 +432,12 @@ const dbManager = {
   updatePositionPrice: async (id, price) => {
     await run(`UPDATE solana_paper_positions SET current_price = ? WHERE id = ?`, [price, id]).catch(() => {});
     return run(`UPDATE cex_paper_positions SET current_price = ? WHERE id = ?`, [price, id]).catch(() => {});
+  },
+  updatePositionHold: async (id, isHold) => {
+    return run(`UPDATE solana_paper_positions SET is_hold = ? WHERE id = ?`, [isHold ? 1 : 0, id]);
+  },
+  updatePositionTargets: async (id, tp, sl) => {
+    return run(`UPDATE solana_paper_positions SET target_tp = ?, target_sl = ? WHERE id = ?`, [tp, sl, id]);
   },
   updateTradeTrigger: async (id, trigger) => {
     await run(`UPDATE solana_paper_trades SET trigger_type = ? WHERE id = ?`, [trigger, id]).catch(() => {});
@@ -535,6 +557,12 @@ const dbManager = {
   },
   getTrackedWallets: async () => {
     return query(`SELECT * FROM tracked_wallets ORDER BY profit_7d DESC`);
+  },
+  saveTrackedWalletHistory: async (walletId, date, profit) => {
+    return run(`INSERT OR REPLACE INTO tracked_wallet_history (wallet_id, date, profit) VALUES (?, ?, ?)`, [walletId, date, profit]);
+  },
+  getTrackedWalletHistory: async (walletId, limit = 7) => {
+    return query(`SELECT * FROM tracked_wallet_history WHERE wallet_id = ? ORDER BY date DESC LIMIT ?`, [walletId, limit]);
   },
 
   // Compatibility Aliases & Helpers
