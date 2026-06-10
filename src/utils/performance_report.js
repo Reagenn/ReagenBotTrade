@@ -14,9 +14,10 @@ async function generatePerformanceReport() {
   const currentPrices = await priceFetcher.getUIPriceBatch(addresses);
   
   const performance = coinsToTrack.map(c => {
-    const currentPrice = currentPrices[c.token_address];
-    if (!currentPrice) return null;
+    const priceData = currentPrices[c.token_address];
+    if (!priceData || !priceData.usd) return null;
     
+    const currentPrice = priceData.usd;
     const initialPrice = c.price;
     const changePct = ((currentPrice - initialPrice) / initialPrice) * 100;
     
@@ -37,9 +38,10 @@ async function generatePerformanceReport() {
   // 2. Get Active Paper Positions Performance
   const activePositions = await dbManager.getActivePositions('solana');
   const paperPerf = activePositions.map(p => {
-    const currentPrice = currentPrices[p.token_address];
-    if (!currentPrice) return null;
+    const priceData = currentPrices[p.token_address];
+    if (!priceData || !priceData.usd) return null;
     
+    const currentPrice = priceData.usd;
     const entryPrice = p.entry_price;
     const changePct = ((currentPrice - entryPrice) / entryPrice) * 100;
     

@@ -3241,7 +3241,7 @@ h2 {
 .paper-history-head,
 .paper-history-row {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr 0.8fr 0.7fr 1fr;
+  grid-template-columns: 1fr 0.8fr 1fr 1.5fr 0.8fr 0.8fr 1fr;
   gap: 0.5rem;
   align-items: center;
   font-size: 0.78rem;
@@ -3349,7 +3349,98 @@ h2 {
   margin-top: 0 !important;
 }
 
-.paper-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.user-list-head,
+.user-list-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
 }
+
+.user-list-head {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.user-list-row {
+  background: rgba(255, 255, 255, 0.01);
+  border-bottom: 1px solid var(--line);
+  transition: background 0.2s ease;
+}
+
+.user-list-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.user-list-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.user-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.user-badge-admin { background: rgba(167, 139, 250, 0.15); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.3); }
+.user-badge-user { background: rgba(94, 234, 212, 0.15); color: var(--accent); border: 1px solid rgba(94, 234, 212, 0.3); }
+.user-badge-approved { background: rgba(74, 222, 128, 0.15); color: var(--success); border: 1px solid rgba(74, 222, 128, 0.3); }
+.user-badge-pending { background: rgba(251, 191, 36, 0.15); color: var(--accent-strong); border: 1px solid rgba(251, 191, 36, 0.3); }
+
+.user-action-btn {
+  padding: 0.45rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.btn-approve {
+  background: var(--success);
+  color: #060b12;
+}
+
+.btn-approve:hover {
+  background: #3acb6f;
+  transform: translateY(-1px);
+}
+
+.btn-delete-user {
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.25);
+}
+
+.btn-delete-user:hover {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: var(--danger);
+}
+
+.user-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+

@@ -41,11 +41,13 @@ async function displayCexTrades() {
     console.log('\n📜 RIWAYAT TRADE TERAKHIR (Database):');
     console.table(dbTrades.map(t => ({
       Symbol: t.symbol,
+      Entry: t.entry_price,
+      Exit: t.exit_price,
+      TP: t.target_tp || '-',
+      SL: t.target_sl || '-',
       'PnL USDT': (t.pnl_usd >= 0 ? '+' : '') + t.pnl_usd,
       'PnL %': (t.pnl_percent >= 0 ? '+' : '') + t.pnl_percent + '%',
       'Trigger': t.trigger_type,
-      Entry: t.entry_price,
-      Exit: t.exit_price,
       'Closed At': t.closed_at
     })));
   } else {

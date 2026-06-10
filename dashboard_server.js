@@ -302,6 +302,7 @@ async function buildDashboardPayload() {
     solanaPaper.tradeHistory = dbSolanaTrades.map(t => ({
       id: t.id, tokenAddress: t.token_address, symbol: t.symbol,
       entryPrice: t.entry_price, exitPrice: t.exit_price, amountSol: t.amount_sol,
+      targetTP: t.target_tp, targetSL: t.target_sl,
       pnlSol: t.pnl_sol, pnlPct: t.pnl_pct, result: t.result,
       trigger: t.trigger_type, closedAt: t.closed_at
     }));
@@ -329,6 +330,7 @@ async function buildDashboardPayload() {
 
     cexPaper.tradeHistory = dbCexTrades.map(t => ({
       id: t.id, symbol: t.symbol, entryPrice: t.entry_price, exitPrice: t.exit_price,
+      targetTP: t.target_tp, targetSL: t.target_sl,
       amountUsdt: t.amount_usdt, pnlUsdt: t.pnl_usd, pnlPct: t.pnl_percent, result: t.result,
       trigger: t.trigger_type, closedAt: t.closed_at
     }));
@@ -379,6 +381,7 @@ app.get("/api/cex-paper", async (req, res) => {
 
     cexPaper.tradeHistory = dbCexTrades.map(t => ({
       id: t.id, symbol: t.symbol, entryPrice: t.entry_price, exitPrice: t.exit_price,
+      targetTP: t.target_tp, targetSL: t.target_sl,
       amountUsdt: t.amount_usdt, pnlUsdt: t.pnl_usd, pnlPct: t.pnl_percent, result: t.result,
       trigger: t.trigger_type, closedAt: t.closed_at
     }));

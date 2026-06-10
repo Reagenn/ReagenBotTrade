@@ -115,10 +115,10 @@ async function birdeyeRequest(config, context = "birdeyeRequest") {
     throw new Error(`Birdeye paused (CU/rate limit) until ${new Date(birdeyePausedUntil).toISOString()}`);
   }
 
-  // Daily Quota Check (NEW)
+  // Daily Quota Check
   const quotaSafe = await dbManager.checkApiQuota('birdeye');
   if (!quotaSafe) {
-    console.warn("[QUOTA] Kuota Birdeye harian (950) habis. Beralih ke fallback (Jupiter/DexScreener)...");
+    console.warn("[QUOTA] Kuota Birdeye harian habis. Beralih ke fallback...");
     throw new Error("Birdeye daily quota exceeded");
   }
 
@@ -129,8 +129,9 @@ async function birdeyeRequest(config, context = "birdeyeRequest") {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     await throttleBirdeyeGap();
 
-    // Rotate key for each attempt
-    const currentKey = keys[(currentBirdeyeIndex + attempt - 1) % keys.length];
+    // Use the current index and wrap around
+    const keyIndex = currentBirdeyeIndex % keys.length;
+    const currentKey = keys[keyIndex];
 
     try {
       const requestConfig = {
@@ -144,26 +145,31 @@ async function birdeyeRequest(config, context = "birdeyeRequest") {
 
       const response = await axios.request(requestConfig);
 
-      // Increment Usage on success
+      // Success: Stick to this key for next time, or move to next if desired.
+      // We'll stay on this key since it works.
       await dbManager.incrementApiUsage('birdeye');
-      
       return response;
     } catch (error) {
       lastError = error;
-      const status = error?.response?.status;
+      const isCU = isComputeUnitLimitError(error);
       const retryable = isRateLimitError(error);
 
+      // Always move to the next key index on failure
+      currentBirdeyeIndex = (currentBirdeyeIndex + 1) % keys.length;
+
       if (retryable && attempt < maxAttempts) {
-        const waitMs = RETRY_DELAY_MS * (attempt <= keys.length ? 0.5 : attempt);
-        const label = isComputeUnitLimitError(error) ? "Compute units" : "Rate limit 429";
+        const waitMs = isCU ? (RETRY_DELAY_MS * 1.5) : (RETRY_DELAY_MS * 0.5);
+        const label = isCU ? "Compute units" : "Rate limit 429";
+        
         console.warn(
-          `[birdeyeAdapter] ${context}: ${label}, percobaan ${attempt}/${maxAttempts}. Merotasi API Key...`
+          `[birdeyeAdapter] ${context}: ${label} pada Key #${keyIndex + 1}, percobaan ${attempt}/${maxAttempts}. Merotasi ke Key #${currentBirdeyeIndex + 1}...`
         );
+        
         if (waitMs > 0) await sleep(waitMs);
         continue;
       }
 
-      if (isComputeUnitLimitError(error)) {
+      if (isCU) {
         pauseBirdeye("Compute units usage limit exceeded on all keys");
       }
 

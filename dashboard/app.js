@@ -268,8 +268,8 @@ const el = {
   paperSummaryGrid: document.getElementById("paperSummaryGrid"),
   paperOpenList: document.getElementById("paperOpenList"),
   paperOpenCount: document.getElementById("paperOpenCount"),
-  paperConfigPanel: document.getElementById("paperConfigPanel"),
-  paperCycleEvents: document.getElementById("paperCycleEvents"),
+  paperSignalsList: document.getElementById("paperSignalsList"),
+  paperScanMeta: document.getElementById("paperScanMeta"),
   paperHistoryList: document.getElementById("paperHistoryList"),
   paperHistoryCount: document.getElementById("paperHistoryCount"),
   cexSummaryGrid: document.getElementById("cexSummaryGrid"),
@@ -2181,27 +2181,36 @@ function renderSolanaPaperTrading(paper, balanceFromPayload) {
     }
   }
 
-  if (el.paperConfigPanel) {
-    el.paperConfigPanel.innerHTML = `
-      <div class="stack-row"><span>Buy size</span><strong>${cfg.buyAmountSol || 0.1} SOL</strong></div>
-      <div class="stack-row"><span>Take Profit</span><strong>+${cfg.takeProfitPct || 50}%</strong></div>
-      <div class="stack-row"><span>Stop Loss</span><strong>-${cfg.stopLossPct || 20}%</strong></div>
-      <div class="stack-row"><span>Trigger buy</span><strong>${(cfg.buyTriggers || []).join(", ")}</strong></div>
-    `;
-  }
-
-  const events = paper.recentEvents || [];
-  if (el.paperCycleEvents) {
-    el.paperCycleEvents.innerHTML = events.length
-      ? events
+  const signals = paper.recentEvents || [];
+  if (el.paperSignalsList) {
+    el.paperSignalsList.innerHTML = signals.length
+      ? signals
           .slice()
           .reverse()
           .map((ev) => {
             const tone = ev.type === "TP" || ev.result === "PROFIT" ? "good" : ev.type === "SL" || ev.result === "LOSS" ? "bad" : "neutral";
-            return `<div class="paper-event paper-event-${tone}"><span>${ev.type}</span> <strong>${ev.symbol || ev.mint?.slice(0, 6) || "-"}</strong> ${ev.pnlPct != null ? `${formatNumber(ev.pnlPct, 1)}%` : ""} <span class="paper-event-time">${formatAge(ev.at)}</span></div>`;
+            const icon = ev.type === "BUY" ? "🚀 BUY" : ev.type;
+            return `
+              <div class="paper-event paper-event-${tone}">
+                <span>${icon}</span> 
+                <strong>${ev.symbol || ev.mint?.slice(0, 6) || "-"}</strong> 
+                ${ev.pnlPct != null ? `${formatNumber(ev.pnlPct, 1)}%` : ""} 
+                <span class="paper-event-time">${formatAge(ev.at)}</span>
+              </div>
+            `;
           })
           .join("")
-      : `<div class="trade-meta">Belum ada event siklus terakhir.</div>`;
+      : `<div class="trade-meta">Belum ada sinyal atau event pada siklus terakhir.</div>`;
+  }
+
+  if (el.paperScanMeta && paper.cycleSummary) {
+    const s = paper.cycleSummary;
+    el.paperScanMeta.innerHTML = `
+      <div class="stack-row"><span>Checked</span><strong>${s.pricesTracked || 0} token</strong></div>
+      <div class="stack-row"><span>Sinyal buy</span><strong>${s.buysOpened || 0}</strong></div>
+      <div class="stack-row"><span>Closed</span><strong>${s.closedThisCycle || 0}</strong></div>
+      <div class="stack-row"><span>Cycle</span><strong>${paper.cycle || 0}</strong></div>
+    `;
   }
 
   const history = paper.tradeHistory || [];
@@ -2213,15 +2222,20 @@ function renderSolanaPaperTrading(paper, balanceFromPayload) {
     } else {
       el.paperHistoryList.innerHTML = `
         <div class="paper-history-head">
-          <span>Token</span><span>Trigger</span><span>P/L SOL</span><span>P/L %</span><span>Waktu</span>
+          <span>Token</span><span>Trigger</span><span>Entry</span><span>TP/SL</span><span>P/L SOL</span><span>P/L %</span><span>Waktu</span>
         </div>
         ${history
           .map((trade) => {
             const tone = trade.result === "PROFIT" ? "good" : "bad";
+            const tpSl = trade.targetTP && trade.targetSL 
+              ? `<small>${formatNumber(trade.targetTP, 6)} / ${formatNumber(trade.targetSL, 6)}</small>` 
+              : "-";
             return `
               <div class="paper-history-row">
                 <span><strong>${trade.symbol || "-"}</strong></span>
                 <span class="tag tag-${tone}">${trade.trigger || trade.result}</span>
+                <span>${formatNumber(trade.entryPrice || 0, 6)}</span>
+                <span>${tpSl}</span>
                 <span class="${tone}">${formatNumber(trade.pnlSol || 0, 4)}</span>
                 <span class="${tone}">${formatNumber(trade.pnlPct || 0, 1)}%</span>
                 <span>${formatAge(trade.closedAt)}</span>
@@ -2352,15 +2366,20 @@ function renderCexPaperTrading(cex) {
     } else {
       el.cexHistoryList.innerHTML = `
         <div class="paper-history-head">
-          <span>Pair</span><span>Trigger</span><span>P/L USDT</span><span>P/L %</span><span>Waktu</span>
+          <span>Pair</span><span>Trigger</span><span>Entry</span><span>TP/SL</span><span>P/L USDT</span><span>P/L %</span><span>Waktu</span>
         </div>
         ${history
           .map((trade) => {
             const tone = trade.result === "PROFIT" ? "good" : "bad";
+            const tpSl = trade.targetTP && trade.targetSL 
+              ? `<small>${formatNumber(trade.targetTP, 2)} / ${formatNumber(trade.targetSL, 2)}</small>` 
+              : "-";
             return `
               <div class="paper-history-row">
                 <span><strong>${trade.symbol}</strong></span>
                 <span class="tag tag-${tone}">${trade.trigger}</span>
+                <span>${formatNumber(trade.entryPrice, 2)}</span>
+                <span>${tpSl}</span>
                 <span class="${tone}">${formatNumber(trade.pnlUsdt, 2)}</span>
                 <span class="${tone}">${formatNumber(trade.pnlPct, 2)}%</span>
                 <span>${formatAge(trade.closedAt)}</span>
@@ -2405,24 +2424,35 @@ async function fetchUsers() {
             </div>
           `;
         } else {
-          pendingListEl.innerHTML = pendingUsers.map(u => `
-            <div class="panel" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(255,255,255,0.02); margin-bottom: 0.75rem;">
-              <div>
-                  <div style="font-weight: 700; font-size: 1rem; color: var(--text);">${u.username}</div>
-                  <div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">
-                      ID: ${u.id} · Role: ${u.role} · Mendaftar: ${formatTime(u.created_at)}
-                  </div>
-              </div>
-              <div style="display: flex; gap: 0.5rem;">
-                <button onclick="approveUser(${u.id}, '${u.username}')" class="btn-dex" style="background: var(--success); color: #000; border-color: var(--success); font-weight: 700;">
-                    Izinkan
-                </button>
-                <button onclick="deleteUser(${u.id}, '${u.username}')" class="btn-blacklist" style="border-radius: 6px; width: auto; padding: 0 0.75rem; height: 2.2rem; font-size: 0.75rem;">
-                    Hapus
-                </button>
-              </div>
+          pendingListEl.innerHTML = `
+            <div class="user-list-head">
+              <span>Pengguna</span>
+              <span>Role / ID</span>
+              <span>Waktu Daftar</span>
+              <span>Aksi</span>
             </div>
-          `).join("");
+            ${pendingUsers.map(u => `
+              <div class="user-list-row">
+                <div style="display: flex; align-items: center; gap: 0.85rem;">
+                  <div class="user-avatar">${u.username.charAt(0).toUpperCase()}</div>
+                  <div style="font-weight: 700; color: #fff;">${u.username}</div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                  <span class="user-badge user-badge-user">USER</span>
+                  <span style="font-size: 0.65rem; color: var(--muted); font-family: var(--mono);">ID: ${u.id}</span>
+                </div>
+                <div style="font-size: 0.8rem; color: var(--muted);">${formatAge(u.created_at)}</div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <button onclick="approveUser(${u.id}, '${u.username}')" class="user-action-btn btn-approve">
+                      Setujui
+                  </button>
+                  <button onclick="deleteUser(${u.id}, '${u.username}')" class="user-action-btn btn-delete-user">
+                      Tolak
+                  </button>
+                </div>
+              </div>
+            `).join("")}
+          `;
         }
     }
 
@@ -2445,25 +2475,44 @@ async function fetchUsers() {
         } else if (allUsers.length === 0) {
           allListEl.innerHTML = `<p class="muted">Belum ada user di database.</p>`;
         } else {
-          allListEl.innerHTML = allUsers.map(u => {
-            const isCurrent = currentUser && currentUser.username === u.username;
-            return `
-            <div class="panel" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(255,255,255,0.02); margin-bottom: 0.75rem; border-left: 3px solid ${u.status === 'APPROVED' ? 'var(--success)' : 'var(--muted)'};">
-              <div>
-                  <div style="font-weight: 700; font-size: 1rem; color: var(--text);">${u.username} ${isCurrent ? '<span style="font-size: 0.7rem; color: var(--accent);">(You)</span>' : ''}</div>
-                  <div style="font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem;">
-                      Role: <strong>${u.role}</strong> · Status: <span style="color: ${u.status === 'APPROVED' ? 'var(--success)' : 'var(--accent-strong)'}">${u.status}</span>
-                  </div>
-              </div>
-              <div>
-                ${!isCurrent ? `
-                <button onclick="deleteUser(${u.id}, '${u.username}')" class="btn-blacklist" style="border-radius: 6px; width: auto; padding: 0 0.75rem; height: 2.2rem; font-size: 0.75rem;">
-                    Hapus Akun
-                </button>
-                ` : '<span style="font-size: 0.7rem; color: var(--muted);">Self-protection active</span>'}
-              </div>
+          allListEl.innerHTML = `
+            <div class="user-list-head">
+              <span>Pengguna</span>
+              <span>Role</span>
+              <span>Status</span>
+              <span>Aksi</span>
             </div>
-          `}).join("");
+            ${allUsers.map(u => {
+              const isCurrent = currentUser && currentUser.username === u.username;
+              const roleBadge = u.role === 'ADMIN' ? 'user-badge-admin' : 'user-badge-user';
+              const statusBadge = u.status === 'APPROVED' ? 'user-badge-approved' : 'user-badge-pending';
+              
+              return `
+                <div class="user-list-row" style="${isCurrent ? 'border-left: 3px solid var(--accent);' : ''}">
+                  <div style="display: flex; align-items: center; gap: 0.85rem;">
+                    <div class="user-avatar">${u.username.charAt(0).toUpperCase()}</div>
+                    <div>
+                      <div style="font-weight: 700; color: #fff;">${u.username} ${isCurrent ? '<span style="font-size: 0.7rem; color: var(--accent);">(You)</span>' : ''}</div>
+                      <div style="font-size: 0.65rem; color: var(--muted); margin-top: 0.15rem;">ID: ${u.id}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <span class="user-badge ${roleBadge}">${u.role}</span>
+                  </div>
+                  <div>
+                    <span class="user-badge ${statusBadge}">${u.status}</span>
+                  </div>
+                  <div>
+                    ${!isCurrent ? `
+                      <button onclick="deleteUser(${u.id}, '${u.username}')" class="user-action-btn btn-delete-user">
+                          Hapus
+                      </button>
+                    ` : '<span style="font-size: 0.7rem; color: var(--muted);">Proteksi Aktif</span>'}
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          `;
         }
     }
   } catch (err) {

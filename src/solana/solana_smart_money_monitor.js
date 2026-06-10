@@ -767,9 +767,12 @@ async function startBot() {
         const freshPrices = await getUIPriceBatch(mints);
 
         for (const m of monitored) {
-          const newPrice = freshPrices[m.token_address];
-          if (newPrice) {
+          const priceData = freshPrices[m.token_address];
+          if (priceData && priceData.usd) {
             try {
+              const newPrice = priceData.usd;
+              const change24h = priceData.change24h || 0;
+
               // Ensure initial_price is set if missing (backfill)
               if (!m.initial_price || m.initial_price === 0) {
                 await dbManager.run(`UPDATE monitor_list SET initial_price = ?, ath_price = ? WHERE token_address = ?`, [newPrice, newPrice, m.token_address]);
@@ -779,17 +782,33 @@ async function startBot() {
 
               // Check for >50% drop (Drawdown Protection)
               const refPrice = m.ath_price || m.initial_price || 0;
+              let shouldBlacklist = false;
+              let reason = "";
+
               if (refPrice > 0) {
                 const dropPct = ((refPrice - newPrice) / refPrice) * 100;
                 if (dropPct > 50) {
-                  console.log(`[SYSTEM] Token ${m.symbol} (${m.token_address}) turun >50% (${dropPct.toFixed(1)}%). Memindahkan ke Blacklist.`);
-                  await dbManager.blacklistToken(m.token_address, m.symbol, `Drawdown > 50% from peak ($${refPrice} -> $${newPrice})`);
-                  continue; // Skip further updates for this token
+                  shouldBlacklist = true;
+                  reason = `Drawdown > 50% from peak ($${refPrice} -> $${newPrice})`;
                 }
+              }
+
+              // NEW: Check for 24H drop > 50% (Explicit User Request)
+              if (!shouldBlacklist && change24h <= -50) {
+                shouldBlacklist = true;
+                reason = `Price 24h drop > 50% (${change24h.toFixed(1)}%)`;
+              }
+
+              if (shouldBlacklist) {
+                console.log(`[SYSTEM] Token ${m.symbol} (${m.token_address}) diblokir: ${reason}`);
+                await dbManager.blacklistToken(m.token_address, m.symbol, reason);
+                continue; // Skip further updates for this token
               }
 
               const pair = m.pair_data ? JSON.parse(m.pair_data) : {};
               pair.priceUsd = newPrice;
+              pair.priceChange24h = change24h; // Sync 24h change
+              
               // Update price and pair_data in DB
               await dbManager.run(`UPDATE monitor_list SET price = ?, pair_data = ? WHERE token_address = ?`, [newPrice, JSON.stringify(pair), m.token_address]);
               // Update ATH price if needed

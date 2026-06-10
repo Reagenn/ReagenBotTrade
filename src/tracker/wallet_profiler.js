@@ -1,9 +1,41 @@
 const { getHeliusWalletProfile } = require('./helius_calculator');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 
 /**
  * Wallet Profiler
  * Logic to determine wallet tags based on transaction behavior.
  */
+
+/**
+ * Fetch 7D and 30D ROI using GMGN CLI
+ * @param {string} walletAddress 
+ */
+async function profileWhaleWallet(walletAddress) {
+  try {
+    // Fetch 7d stats
+    const cmd7d = `gmgn-cli portfolio stats --chain sol --wallet ${walletAddress} --period 7d --raw`;
+    const { stdout: out7d } = await execPromise(cmd7d, { env: process.env });
+    const data7d = JSON.parse(out7d.match(/\{.*\}/s)[0]);
+
+    // Fetch 30d stats
+    const cmd30d = `gmgn-cli portfolio stats --chain sol --wallet ${walletAddress} --period 30d --raw`;
+    const { stdout: out30d } = await execPromise(cmd30d, { env: process.env });
+    const data30d = JSON.parse(out30d.match(/\{.*\}/s)[0]);
+
+    return {
+      roi_7d: (data7d.pnl || 0) * 100, // Convert multiplier to percentage
+      roi_30d: (data30d.pnl || 0) * 100,
+      winrate: (data7d.winrate || 0) * 100,
+      realized_profit: data7d.realized_profit || 0,
+      tags: data7d.common?.tags || []
+    };
+  } catch (error) {
+    console.error(`[PROFILER ERROR] Failed to fetch GMGN stats for ${walletAddress}:`, error.message);
+    return { roi_7d: 0, roi_30d: 0, winrate: 0, realized_profit: 0, tags: [] };
+  }
+}
 
 async function getFullWalletProfile(walletAddress) {
   const transactions = []; // Logic to fetch transactions if needed for tags
@@ -82,4 +114,4 @@ function profileWallet(transactions) {
   };
 }
 
-module.exports = { profileWallet, getFullWalletProfile };
+module.exports = { profileWallet, getFullWalletProfile, profileWhaleWallet };

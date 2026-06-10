@@ -73,11 +73,13 @@ async function migrateAndDisplay() {
       console.log('\n📜 RIWAYAT TRADE TERAKHIR (Database):');
       console.table(dbTrades.map(t => ({
         Symbol: t.symbol,
+        Entry: t.entry_price,
+        Exit: t.exit_price,
+        TP: t.target_tp || '-',
+        SL: t.target_sl || '-',
         'PnL SOL': t.pnl_sol,
         'PnL %': t.pnl_pct + '%',
         'Trigger': t.trigger_type,
-        Entry: t.entry_price,
-        Exit: t.exit_price,
         'Closed At': t.closed_at
       })));
     } else {

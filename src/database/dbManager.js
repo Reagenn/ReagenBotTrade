@@ -143,7 +143,7 @@ async function initDb() {
     // Tabel Paper Trading (Solana)
     await run(`CREATE TABLE IF NOT EXISTS solana_paper_trades (
       id TEXT PRIMARY KEY,
-      token_address TEXT, symbol TEXT, entry_price REAL, exit_price REAL, amount_sol REAL, pnl_sol REAL, pnl_pct REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME
+      token_address TEXT, symbol TEXT, entry_price REAL, exit_price REAL, amount_sol REAL, pnl_sol REAL, pnl_pct REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME, target_tp REAL, target_sl REAL
     )`);
     await run(`CREATE TABLE IF NOT EXISTS solana_paper_positions (
       id TEXT PRIMARY KEY, token_address TEXT, symbol TEXT, entry_price REAL, current_price REAL, amount_sol REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT, is_hold INTEGER DEFAULT 0
@@ -157,13 +157,35 @@ async function initDb() {
       }
     } catch (e) { console.error("[DB] Paper positions migration error:", e.message); }
 
+    // Migration for solana_paper_trades
+    try {
+      const solHistoryCols = await query("PRAGMA table_info(solana_paper_trades)");
+      if (!solHistoryCols.some(c => c.name === 'target_tp')) {
+        await run("ALTER TABLE solana_paper_trades ADD COLUMN target_tp REAL");
+      }
+      if (!solHistoryCols.some(c => c.name === 'target_sl')) {
+        await run("ALTER TABLE solana_paper_trades ADD COLUMN target_sl REAL");
+      }
+    } catch (e) { console.error("[DB] Solana history migration error:", e.message); }
+
     // Tabel Paper Trading (CEX)
     await run(`CREATE TABLE IF NOT EXISTS cex_paper_positions (
       id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, current_price REAL, amount_usdt REAL, amount_token REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT
     )`);
     await run(`CREATE TABLE IF NOT EXISTS cex_paper_trades (
-      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, exit_price REAL, amount_usdt REAL, amount_token REAL, pnl_usd REAL, pnl_percent REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME
+      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, exit_price REAL, amount_usdt REAL, amount_token REAL, pnl_usd REAL, pnl_percent REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME, target_tp REAL, target_sl REAL
     )`);
+
+    // Migration for cex_paper_trades
+    try {
+      const cexHistoryCols = await query("PRAGMA table_info(cex_paper_trades)");
+      if (!cexHistoryCols.some(c => c.name === 'target_tp')) {
+        await run("ALTER TABLE cex_paper_trades ADD COLUMN target_tp REAL");
+      }
+      if (!cexHistoryCols.some(c => c.name === 'target_sl')) {
+        await run("ALTER TABLE cex_paper_trades ADD COLUMN target_sl REAL");
+      }
+    } catch (e) { console.error("[DB] CEX history migration error:", e.message); }
 
     // Tabel Statistik Bot (RECONSTRUCTED)
     await run(`CREATE TABLE IF NOT EXISTS bot_stats (
@@ -297,6 +319,7 @@ async function initDb() {
       network TEXT, -- solana, base, bsc, bybit, bitget
       alias TEXT,
       tags TEXT, -- JSON
+      latest_token_bought TEXT,
       profit_7d REAL DEFAULT 0,
       roi_7d REAL DEFAULT 0,
       profit_30d REAL DEFAULT 0,
@@ -306,6 +329,14 @@ async function initDb() {
       activity TEXT,
       last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // Migration for tracked_wallets
+    try {
+      const trackedCols = await query("PRAGMA table_info(tracked_wallets)");
+      if (!trackedCols.some(c => c.name === 'latest_token_bought')) {
+        await run("ALTER TABLE tracked_wallets ADD COLUMN latest_token_bought TEXT");
+      }
+    } catch (e) { console.error("[DB] Tracked wallets migration error:", e.message); }
 
     // Tabel Tracked Wallet History
     await run(`CREATE TABLE IF NOT EXISTS tracked_wallet_history (
@@ -364,8 +395,8 @@ const dbManager = {
     const now = new Date().toISOString();
     if (type === 'solana') {
       const pnlSol = (pos.amount_sol * pnlPct) / 100;
-      await run(`INSERT INTO solana_paper_trades (id, token_address, symbol, entry_price, exit_price, amount_sol, pnl_sol, pnl_pct, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [pos.id, pos.token_address, pos.symbol, pos.entry_price, price, pos.amount_sol, pnlSol, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, now]);
+      await run(`INSERT INTO solana_paper_trades (id, token_address, symbol, entry_price, exit_price, amount_sol, pnl_sol, pnl_pct, result, trigger_type, opened_at, closed_at, target_tp, target_sl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pos.id, pos.token_address, pos.symbol, pos.entry_price, price, pos.amount_sol, pnlSol, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, now, pos.target_tp, pos.target_sl]);
       
       const current = await dbManager.getPaperBalance();
       await dbManager.updatePaperBalance(current + pos.amount_sol + pnlSol);
@@ -374,8 +405,8 @@ const dbManager = {
       await dbManager.syncPaperStats('solana');
     } else {
       const pnlUsdt = (pos.amount_usdt * pnlPct) / 100;
-      await run(`INSERT INTO cex_paper_trades (id, symbol, entry_price, exit_price, amount_usdt, amount_token, pnl_usd, pnl_percent, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [pos.id, pos.symbol, pos.entry_price, price, pos.amount_usdt, pos.amount_token, pnlUsdt, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, now]);
+      await run(`INSERT INTO cex_paper_trades (id, symbol, entry_price, exit_price, amount_usdt, amount_token, pnl_usd, pnl_percent, result, trigger_type, opened_at, closed_at, target_tp, target_sl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [pos.id, pos.symbol, pos.entry_price, price, pos.amount_usdt, pos.amount_token, pnlUsdt, pnlPct, pnlPct >= 0 ? "PROFIT" : "LOSS", trigger, pos.opened_at, now, pos.target_tp, pos.target_sl]);
       
       const current = await dbManager.getCexBalance();
       await dbManager.updateCexBalance(current + pos.amount_usdt + pnlUsdt);
@@ -552,8 +583,8 @@ const dbManager = {
 
   // Tracked Wallets
   addTrackedWallet: async (w) => {
-    const sql = `INSERT OR REPLACE INTO tracked_wallets (wallet_id, type, network, alias, tags, profit_7d, roi_7d, profit_30d, roi_30d, avg_invested, win_rate, activity, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
-    return run(sql, [w.wallet_id || w.walletId, w.type, w.network, w.alias, JSON.stringify(w.tags || []), w.profit_7d || 0, w.roi_7d || 0, w.profit_30d || 0, w.roi_30d || 0, w.avg_invested || 0, w.win_rate || 0, w.activity]);
+    const sql = `INSERT OR REPLACE INTO tracked_wallets (wallet_id, type, network, alias, tags, latest_token_bought, profit_7d, roi_7d, profit_30d, roi_30d, avg_invested, win_rate, activity, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+    return run(sql, [w.wallet_id || w.walletId, w.type, w.network, w.alias, JSON.stringify(w.tags || []), w.latest_token_bought || w.latestToken, w.profit_7d || 0, w.roi_7d || 0, w.profit_30d || 0, w.roi_30d || 0, w.avg_invested || 0, w.win_rate || 0, w.activity]);
   },
   getTrackedWallets: async () => {
     return query(`SELECT * FROM tracked_wallets ORDER BY profit_7d DESC`);
@@ -575,8 +606,8 @@ const dbManager = {
   savePaperPosition: async (pos) => dbManager.saveOpenPosition('solana', pos),
   savePaperTrade: async (trade) => {
     const now = new Date().toISOString();
-    const res = await run(`INSERT INTO solana_paper_trades (id, token_address, symbol, entry_price, exit_price, amount_sol, pnl_sol, pnl_pct, result, trigger_type, opened_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [trade.id || `T-${Date.now()}`, trade.token_address || trade.tokenAddress, trade.symbol, trade.entry_price || trade.entryPrice, trade.exit_price || trade.exitPrice, trade.amount_sol || trade.amountSol, trade.pnl_sol || trade.pnlSol, trade.pnl_pct || trade.pnlPct, trade.result, trade.trigger_type || trade.triggerType, trade.opened_at || trade.openedAt, trade.closed_at || trade.closedAt || now]);
+    const res = await run(`INSERT INTO solana_paper_trades (id, token_address, symbol, entry_price, exit_price, amount_sol, pnl_sol, pnl_pct, result, trigger_type, opened_at, closed_at, target_tp, target_sl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [trade.id || `T-${Date.now()}`, trade.token_address || trade.tokenAddress, trade.symbol, trade.entry_price || trade.entryPrice, trade.exit_price || trade.exitPrice, trade.amount_sol || trade.amountSol, trade.pnl_sol || trade.pnlSol, trade.pnl_pct || trade.pnlPct, trade.result, trade.trigger_type || trade.triggerType, trade.opened_at || trade.openedAt, trade.closed_at || trade.closedAt || now, trade.target_tp || trade.targetTP, trade.target_sl || trade.targetSL]);
     await dbManager.syncPaperStats('solana');
     return res;
   },
