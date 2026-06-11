@@ -1,16 +1,20 @@
-const { EMA, ATR } = require("technicalindicators");
+const { EMA, ATR, RSI } = require("technicalindicators");
 const { createPublicExchange, withTimeout, withRetry } = require("./cexExchange");
 
-const VOLUME_MA_PERIOD = 15;
-const VOLUME_SPIKE_MULTIPLIER = Number(process.env.CEX_VOLUME_SPIKE_MULTIPLIER || 3);
-const TREND_TIMEFRAME = process.env.CEX_TREND_TIMEFRAME || "15m";
-const EMA_TREND_PERIOD = Number(process.env.CEX_EMA_TREND_PERIOD || 200);
+const VOLUME_MA_PERIOD = 20;
+const VOLUME_SPIKE_MULTIPLIER = 2.5;
+const TREND_TIMEFRAME = "15m";
+const TREND_TIMEFRAME_1H = "1h";
+const EMA_TREND_PERIOD = 200;
+const RSI_PERIOD = 14;
+const RSI_OB_LIMIT = 68;
 const MAX_UPPER_WICK_RATIO = Number(process.env.CEX_MAX_UPPER_WICK_RATIO || 0.35);
-const ATR_PERIOD = Number(process.env.CEX_ATR_PERIOD || 14);
-const ATR_SL_MULTIPLIER = Number(process.env.CEX_ATR_SL_MULTIPLIER || 1.5);
-const ATR_TP_MULTIPLIER = Number(process.env.CEX_ATR_TP_MULTIPLIER || 3);
-const OHLCV_1M_LIMIT = Number(process.env.CEX_OHLCV_1M_LIMIT || 60);
-const OHLCV_15M_LIMIT = Number(process.env.CEX_OHLCV_15M_LIMIT || 220);
+const ATR_PERIOD = 14;
+const ATR_SL_MULTIPLIER = 2.0;
+const ATR_TP_MULTIPLIER = 3.0;
+const OHLCV_1M_LIMIT = 60;
+const OHLCV_15M_LIMIT = 220;
+const OHLCV_1H_LIMIT = 220;
 const ignoredCoins = ['BTC/USDT', 'ETH/USDT', 'USDC/USDT'];
 
 function round(value, digits = 8) {
@@ -51,41 +55,34 @@ function computeUpperWickRatio(high, low, close) {
   return { ratio: round(ratio, 4), valid: true };
 }
 
-/**
- * EMA 200 pada timeframe 15m — bandingkan dengan close 1m saat ini.
- */
-function computeTrendEma200(candles15m) {
-  const closes = candles15m.map((c) => c.close).filter((v) => Number.isFinite(v));
-  if (closes.length < EMA_TREND_PERIOD) {
-    return { ema200: null, sufficient: false };
-  }
-
-  const emaSeries = EMA.calculate({ period: EMA_TREND_PERIOD, values: closes });
-  const ema200 = emaSeries[emaSeries.length - 1];
-  return { ema200: Number(ema200), sufficient: true };
+function computeEma(values, period) {
+  if (!values || values.length < period) return null;
+  const series = EMA.calculate({ period, values });
+  return series[series.length - 1];
 }
 
-/**
- * ATR(14) pada candle 1m — nilai terakhir untuk TP/SL dinamis.
- */
-function computeAtr1m(candles1m) {
-  if (candles1m.length < ATR_PERIOD + 2) {
-    return { atr: null, sufficient: false };
-  }
+function computeRsi(values, period) {
+  if (!values || values.length < period + 1) return null;
+  const series = RSI.calculate({ period, values });
+  return series[series.length - 1];
+}
 
-  const highs = candles1m.map((c) => c.high);
-  const lows = candles1m.map((c) => c.low);
-  const closes = candles1m.map((c) => c.close);
-
-  const atrSeries = ATR.calculate({
-    period: ATR_PERIOD,
-    high: highs,
-    low: lows,
-    close: closes,
+function computeAtr(candles, period) {
+  if (!candles || candles.length < period + 1) return null;
+  const series = ATR.calculate({
+    period,
+    high: candles.map((c) => c.high),
+    low: candles.map((c) => c.low),
+    close: candles.map((c) => c.close),
   });
+  return series[series.length - 1];
+}
 
-  const atr = atrSeries[atrSeries.length - 1];
-  return { atr: Number(atr), sufficient: Number.isFinite(atr) && atr > 0 };
+function computeVolumeMa(candles, period) {
+  if (!candles || candles.length < period) return 0;
+  const volumes = candles.map((c) => c.volume);
+  const sum = volumes.slice(-period).reduce((a, b) => a + b, 0);
+  return sum / period;
 }
 
 /**
@@ -94,13 +91,14 @@ function computeAtr1m(candles1m) {
 class CexMonitor {
   constructor(options = {}) {
     this.exchangeId = options.exchangeId || process.env.CEX_EXCHANGE || "bybit";
-    this.timeframe = options.timeframe || process.env.CEX_TIMEFRAME || "1m";
+    this.timeframe = options.timeframe || process.env.CEX_TIMEFRAME || "15m";
     this.universeLimit = Number(options.universeLimit ?? process.env.CEX_UNIVERSE_LIMIT ?? 40);
     this.minQuoteVolume24h = Number(options.minQuoteVolume24h ?? process.env.CEX_MIN_QUOTE_VOLUME_24H ?? 500000);
     this.exchange = null;
     this.marketsLoaded = false;
     this.symbolUniverse = [];
     this.lastBuyOpenedAt = 0;
+    this.states = {}; // Track WAITING_PULLBACK per symbol
   }
 
   recordBuyOpened() {
@@ -166,162 +164,142 @@ class CexMonitor {
   }
 
   /**
-   * Moving Average Volume — rata-rata volume 15 candle sebelum candle terakhir (1m).
-   */
-  static computeVolumeBaseline(candles1m) {
-    const rows = candles1m.map((c) => [c.timestamp, c.open, c.high, c.low, c.close, c.volume]);
-    if (rows.length < VOLUME_MA_PERIOD + 1) {
-      return null;
-    }
-
-    const latest = rows[rows.length - 1];
-    const previous15 = rows.slice(-(VOLUME_MA_PERIOD + 1), -1);
-    const volumes = previous15.map((candle) => Number(candle[5] || 0));
-    const avgVolume = volumes.reduce((sum, vol) => sum + vol, 0) / VOLUME_MA_PERIOD;
-
-    return { avgVolume, latest, previous15, candle: candles1m[candles1m.length - 1] };
-  }
-
-  /**
-   * Pipeline: volume spike → EMA200 15m → wick → ATR TP/SL.
+   * Pipeline: Volume Spike (15m) → MTF EMA200 (15m+1h) → Pullback Trigger → ATR TP/SL.
    */
   async analyzeSymbol(symbol) {
     if (ignoredCoins.includes(symbol)) {
       return { type: "NO_SIGNAL", symbol, signal: { reason: "ignored_coin" } };
     }
-    const candles1m = await this.fetchOhlcv(symbol, this.timeframe, OHLCV_1M_LIMIT);
-    const baseline = CexMonitor.computeVolumeBaseline(candles1m);
 
-    if (!baseline) {
-      return { type: "NO_SIGNAL", symbol, signal: { reason: "insufficient_1m_candles" } };
+    // 1. Fetch Data (15m and 1h)
+    const [candles15m, candles1h] = await Promise.all([
+      this.fetchOhlcv(symbol, TREND_TIMEFRAME, OHLCV_15M_LIMIT),
+      this.fetchOhlcv(symbol, TREND_TIMEFRAME_1H, OHLCV_1H_LIMIT),
+    ]);
+
+    if (candles15m.length < OHLCV_15M_LIMIT || candles1h.length < OHLCV_1H_LIMIT) {
+      return { type: "NO_SIGNAL", symbol, signal: { reason: "insufficient_candles" } };
     }
 
-    const { avgVolume, candle: latest } = baseline;
-    const latestVolume = Number(latest.volume || 0);
-    const open = Number(latest.open || 0);
-    const close = Number(latest.close || 0);
-    const high = Number(latest.high || 0);
-    const low = Number(latest.low || 0);
-    const isGreenCandle = close > open;
-    const volumeRatio = avgVolume > 0 ? latestVolume / avgVolume : 0;
-    const isVolumeSpike = latestVolume > avgVolume * VOLUME_SPIKE_MULTIPLIER;
+    const latest15m = candles15m[candles15m.length - 1];
+    const closes15m = candles15m.map((c) => c.close);
+    const closes1h = candles1h.map((c) => c.close);
+
+    // 2. Calculate Indicators on 15m
+    const ema200_15m = computeEma(closes15m, EMA_TREND_PERIOD);
+    const ema20_15m = computeEma(closes15m, 20);
+    const ema50_15m = computeEma(closes15m, 50);
+    const rsi15m = computeRsi(closes15m, RSI_PERIOD);
+    const atr15m = computeAtr(candles15m, ATR_PERIOD);
+
+    // 3. Calculate Indicators on 1h
+    const ema200_1h = computeEma(closes1h, EMA_TREND_PERIOD);
+
+    // Baseline Volume (SMA 20 of previous 20 closed candles)
+    const avgVolume20 = computeVolumeMa(candles15m.slice(-21, -1), 20);
+
+    const wick = computeUpperWickRatio(latest15m.high, latest15m.low, latest15m.close);
+    const volumeRatio = avgVolume20 > 0 ? latest15m.volume / avgVolume20 : 0;
 
     const metrics = {
       symbol,
-      timestamp: latest.timestamp,
-      open,
-      high,
-      low,
-      close,
-      latestVolume,
-      avgVolume15m: Number(avgVolume.toFixed(4)),
-      volumeRatio: Number(volumeRatio.toFixed(2)),
-      volumeSpikeMultiplier: VOLUME_SPIKE_MULTIPLIER,
-      isGreenCandle,
-      isVolumeSpike,
+      timestamp: latest15m.timestamp,
+      close: latest15m.close,
+      rsi15m: round(rsi15m, 2),
+      ema200_15m: round(ema200_15m, 8),
+      ema200_1h: round(ema200_1h, 8),
+      avgVolume20: round(avgVolume20, 2),
+      currentVolume: latest15m.volume,
+      volumeRatio: round(volumeRatio, 2),
+      upperWickRatio: wick.ratio || 0,
     };
 
-    if (!isVolumeSpike || !isGreenCandle) {
-      return { type: "NO_SIGNAL", symbol, signal: metrics };
+    // 4. MTF Trend Filter (Price must be above EMA200 on both 15m and 1h)
+    const isAboveEma15m = latest15m.close > ema200_15m;
+    const isAboveEma1h = candles1h[candles1h.length - 1].close > ema200_1h;
+
+    if (!isAboveEma15m || !isAboveEma1h) {
+      if (this.states[symbol]) delete this.states[symbol];
+      return { type: "NO_SIGNAL", symbol, signal: { ...metrics, reason: "below_mtf_ema200" } };
     }
 
-    // --- Filter 1: Multi-Timeframe EMA 200 (15m) ---
-    const candles15m = await this.fetchOhlcv(symbol, TREND_TIMEFRAME, OHLCV_15M_LIMIT);
-    const trend = computeTrendEma200(candles15m);
+    // 5. State Machine Logic
+    const state = this.states[symbol];
 
-    if (!trend.sufficient || !Number.isFinite(trend.ema200)) {
-      logSignalRejected(
-        symbol,
-        `Data ${TREND_TIMEFRAME} tidak cukup untuk EMA ${EMA_TREND_PERIOD} (butuh ${OHLCV_15M_LIMIT} candle)`,
-      );
-      return { type: "REJECTED", symbol, signal: { ...metrics, rejectReason: "ema_data_insufficient" } };
+    if (state && state.status === "WAITING_PULLBACK") {
+      // --- Trigger BUY Logic ---
+      const isRed = latest15m.close < latest15m.open;
+      const isLowVolume = latest15m.volume < avgVolume20;
+
+      // Distance to EMA20, EMA50, or EMA200 < 0.5%
+      const distEma20 = Math.abs(latest15m.close - ema20_15m) / latest15m.close;
+      const distEma50 = Math.abs(latest15m.close - ema50_15m) / latest15m.close;
+      const distEma200 = Math.abs(latest15m.close - ema200_15m) / latest15m.close;
+      const isNearEma = Math.min(distEma20, distEma50, distEma200) < 0.005;
+
+      if (rsi15m > RSI_OB_LIMIT) {
+        console.log(`[cexMonitor] ${symbol} Pullback detected but RSI > ${RSI_OB_LIMIT} (${round(rsi15m, 1)}) -> REJECTED`);
+        delete this.states[symbol];
+        return { type: "REJECTED", symbol, signal: { ...metrics, rejectReason: "overbought_at_trigger" } };
+      }
+
+      if (isRed && isLowVolume && isNearEma) {
+        delete this.states[symbol];
+
+        const targetSL = round(latest15m.close - ATR_SL_MULTIPLIER * atr15m, 8);
+        const targetTP = round(latest15m.close + ATR_TP_MULTIPLIER * atr15m, 8);
+
+        const rationale = `Pullback entry confirmed: Red candle + Low Volume + Near EMA Support + MTF EMA200 Alignment.`;
+
+        return {
+          type: "BUY_SIGNAL",
+          symbol,
+          entryPrice: latest15m.close,
+          targetTP,
+          targetSL,
+          atr: atr15m,
+          signal: {
+            ...metrics,
+            stopLossPct: round(((latest15m.close - targetSL) / latest15m.close) * 100, 2),
+            takeProfitPct: round(((targetTP - latest15m.close) / latest15m.close) * 100, 2),
+            rationale,
+          },
+          detectedAt: new Date().toISOString(),
+        };
+      }
+
+      // Cleanup state if it hangs too long (e.g., 8 hours)
+      if (Date.now() - state.detectedAt > 8 * 3600 * 1000) {
+        delete this.states[symbol];
+      }
+
+      return { type: "NO_SIGNAL", symbol, signal: { ...metrics, reason: "waiting_pullback" } };
+    } else {
+      // --- Spike Detection Logic ---
+      const candle_i1 = candles15m[candles15m.length - 2];
+      const candle_i2 = candles15m[candles15m.length - 3];
+
+      const isSpike1 = candle_i1.volume > avgVolume20 * VOLUME_SPIKE_MULTIPLIER && candle_i1.close > candle_i1.open;
+      const isSpike2 = candle_i2.volume > avgVolume20 * VOLUME_SPIKE_MULTIPLIER && candle_i2.close > candle_i2.open;
+
+      if (isSpike1 || isSpike2) {
+        // RSI Filter for Spike
+        if (rsi15m > RSI_OB_LIMIT) {
+          console.log(`[cexMonitor] Spike Detected for ${symbol} but RSI > ${RSI_OB_LIMIT} (${round(rsi15m, 1)}) -> REJECTED`);
+          return { type: "REJECTED", symbol, signal: { ...metrics, rejectReason: "spike_overbought" } };
+        }
+
+        console.log(`[cexMonitor] Spike Detected for ${symbol} (Vol > ${VOLUME_SPIKE_MULTIPLIER}x), entering WAITING_PULLBACK mode.`);
+        this.states[symbol] = {
+          status: "WAITING_PULLBACK",
+          detectedAt: Date.now(),
+          spikeCandle: isSpike1 ? candle_i1 : candle_i2,
+        };
+        return { type: "NO_SIGNAL", symbol, signal: { ...metrics, reason: "spike_detected_waiting_pullback" } };
+      }
     }
 
-    metrics.ema200_15m = round(trend.ema200, 8);
-    metrics.closeAboveEma200 = close > trend.ema200;
-
-    if (close <= trend.ema200) {
-      logSignalRejected(
-        symbol,
-        `Tren ${TREND_TIMEFRAME} sedang Bearish (close ${close} di bawah EMA ${EMA_TREND_PERIOD} @ ${round(trend.ema200, 6)})`,
-      );
-      return {
-        type: "REJECTED",
-        symbol,
-        signal: { ...metrics, rejectReason: "below_ema200" },
-      };
-    }
-
-    // --- Filter 2: Upper Wick Rejection ---
-    const wick = computeUpperWickRatio(high, low, close);
-    metrics.upperWickRatio = wick.ratio;
-    metrics.maxUpperWickRatio = MAX_UPPER_WICK_RATIO;
-
-    if (!wick.valid) {
-      logSignalRejected(symbol, "Range candle 1m tidak valid (High = Low)");
-      return { type: "REJECTED", symbol, signal: { ...metrics, rejectReason: "invalid_candle_range" } };
-    }
-
-    if (wick.ratio > MAX_UPPER_WICK_RATIO) {
-      logSignalRejected(
-        symbol,
-        `Upper Wick terlalu panjang (${(wick.ratio * 100).toFixed(1)}% > ${(MAX_UPPER_WICK_RATIO * 100).toFixed(0)}% — indikasi tekanan jual / bull trap)`,
-      );
-      return { type: "REJECTED", symbol, signal: { ...metrics, rejectReason: "upper_wick_rejection" } };
-    }
-
-    // --- Filter 3: Dynamic TP/SL via ATR(14) 1m ---
-    const atrResult = computeAtr1m(candles1m);
-    if (!atrResult.sufficient) {
-      logSignalRejected(symbol, `ATR ${ATR_PERIOD} tidak dapat dihitung (candle 1m kurang)`);
-      return { type: "REJECTED", symbol, signal: { ...metrics, rejectReason: "atr_insufficient" } };
-    }
-
-    const atr = atrResult.atr;
-    let targetSL = round(close - ATR_SL_MULTIPLIER * atr, 8);
-    let targetTP = round(close + ATR_TP_MULTIPLIER * atr, 8);
-
-    // ATR Floor overrides (SL min 1.5%, TP min 2.5%)
-    const rawSlPct = ((close - targetSL) / close) * 100;
-    if (rawSlPct < 1.5) {
-      targetSL = round(close * 0.985, 8); // -1.5%
-    }
-    const rawTpPct = ((targetTP - close) / close) * 100;
-    if (rawTpPct < 2.5) {
-      targetTP = round(close * 1.025, 8); // +2.5%
-    }
-
-    if (targetSL <= 0 || targetTP <= close) {
-      logSignalRejected(symbol, `Level TP/SL tidak valid (ATR=${round(atr, 8)}, SL=${targetSL}, TP=${targetTP})`);
-      return { type: "REJECTED", symbol, signal: { ...metrics, rejectReason: "invalid_atr_levels" } };
-    }
-
-    metrics.atr14_1m = round(atr, 8);
-    metrics.atrSlMultiplier = ATR_SL_MULTIPLIER;
-    metrics.atrTpMultiplier = ATR_TP_MULTIPLIER;
-    metrics.targetSL = targetSL;
-    metrics.targetTP = targetTP;
-    metrics.stopLossPct = round(((close - targetSL) / close) * 100, 2);
-    metrics.takeProfitPct = round(((targetTP - close) / close) * 100, 2);
-
-    // --- Task 2: Retracement Entry (Midpoint of spike candle) ---
-    const entryPrice = round((high + low) / 2, 8);
-    console.log(`[ENTRY] Menunggu pullback di harga ${entryPrice} untuk ${symbol} (Midpoint Spike)`);
-
-    const rationale = `Volume spike (${volumeRatio.toFixed(1)}x) confirmed by ${TREND_TIMEFRAME} trend (above EMA${EMA_TREND_PERIOD}). ATR-based volatility target: TP +${metrics.takeProfitPct}% / SL -${metrics.stopLossPct}%.`;
-
-    return {
-      type: "BUY_SIGNAL",
-      symbol,
-      entryPrice,
-      targetTP,
-      targetSL,
-      atr,
-      atrSlMultiplier: ATR_SL_MULTIPLIER,
-      atrTpMultiplier: ATR_TP_MULTIPLIER,
-      signal: { ...metrics, rationale },
-      detectedAt: new Date().toISOString(),
-    };
+    return { type: "NO_SIGNAL", symbol, signal: metrics };
   }
 
   async scanForSignals() {
@@ -383,6 +361,7 @@ module.exports = {
   VOLUME_MA_PERIOD,
   VOLUME_SPIKE_MULTIPLIER,
   computeUpperWickRatio,
-  computeTrendEma200,
-  computeAtr1m,
+  computeEma,
+  computeAtr,
+  computeRsi,
 };
