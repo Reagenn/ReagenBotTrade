@@ -21,7 +21,7 @@ async function cekSinyalSmartMoney(tokenAddress) {
 
         // 1. Tarik data traders dengan tag 'smart_degen' (Smart Money)
         // Kita ambil 50 trader terbaru untuk memastikan coverage window 5 menit
-        const command = `gmgn-cli token traders --chain sol --address ${tokenAddress} --tag smart_degen --limit 50 --order-by last_active_timestamp --direction desc --raw`;
+        const command = `gmgn-cli token traders --chain sol --address ${tokenAddress} --tag smart_degen --limit 50 --order-by profit --direction desc --raw`;
         
         const { stdout } = await execPromise(command, {
             env: { ...process.env, GMGN_API_KEY: process.env.GMGN_API_KEY },

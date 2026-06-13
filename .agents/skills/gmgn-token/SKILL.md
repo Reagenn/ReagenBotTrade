@@ -591,7 +591,7 @@ Use this table to pick the right combination for common `token traders` use case
 |----------|---------|-------------|
 | Smart money with highest buy volume | `smart_degen` | `buy_volume_cur` |
 | Smart money with highest sell volume (exit signal) | `smart_degen` | `sell_volume_cur` |
-| KOLs recently active | `renowned` | `last_active_timestamp` |
+| KOLs with high buy volume | `renowned` | `buy_volume_cur` |
 | Smart money most profitable traders | `smart_degen` | `profit` |
 | Snipers still holding | `sniper` | `amount_percentage` |
 | Smart money sitting on biggest unrealized gains | `smart_degen` | `unrealized_profit` |
