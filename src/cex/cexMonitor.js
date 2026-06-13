@@ -90,7 +90,7 @@ function computeVolumeMa(candles, period) {
  */
 class CexMonitor {
   constructor(options = {}) {
-    this.exchangeId = options.exchangeId || process.env.CEX_EXCHANGE || "bybit";
+    this.exchangeId = options.exchangeId || process.env.CEX_EXCHANGE || "kraken";
     this.timeframe = options.timeframe || process.env.CEX_TIMEFRAME || "15m";
     this.universeLimit = Number(options.universeLimit ?? process.env.CEX_UNIVERSE_LIMIT ?? 40);
     this.minQuoteVolume24h = Number(options.minQuoteVolume24h ?? process.env.CEX_MIN_QUOTE_VOLUME_24H ?? 500000);

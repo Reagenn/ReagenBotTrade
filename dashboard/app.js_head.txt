@@ -1,0 +1,47 @@
+const dashboardUrl = "/api/dashboard";
+
+// Auth Check
+const currentUser = JSON.parse(localStorage.getItem('reagen_user') || 'null');
+const currentToken = localStorage.getItem('reagen_token');
+
+if (!currentUser && !window.location.pathname.includes('login.html')) {
+  window.location.href = '/login.html';
+}
+
+/**
+ * Fetch with Auth Header
+ */
+async function fetchWithAuth(url, options = {}) {
+  const headers = options.headers || {};
+  if (currentToken) {
+    headers['Authorization'] = `Bearer ${currentToken}`;
+  }
+  
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (res.status === 401 || res.status === 403) {
+    const data = await res.json().catch(() => ({}));
+    if (data.error && data.error.toLowerCase().includes('token')) {
+        localStorage.removeItem('reagen_token');
+        localStorage.removeItem('reagen_user');
+        window.location.href = '/login.html';
+    }
+  }
+  
+  return res;
+}
+
+const PAGE_TITLES = {
+  phoenix: "Phoenix Scanner v4 · Reagen Console",
+  monitor: "Solana Monitor · Reagen Console",
+  "track-wallet": "Smart Wallet Tracker · Reagen Console",
+  "solana-paper": "Solana Paper Trading · Reagen Console",
+  "cex-spike": "CEX Volume Spike · Reagen Console",
+  trading: "BTC Futures Trading · Reagen Console",
+};

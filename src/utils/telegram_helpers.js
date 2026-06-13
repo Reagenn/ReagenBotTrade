@@ -117,7 +117,7 @@ const formatCexSpikeAlert = (cexData) => {
 🧠 <b>Rationale:</b>
 <i>${rationale || 'Volume breakout with trend confirmation and ATR-based volatility targeting.'}</i>
 
-🔗 <a href="https://www.bybit.com/en-US/trade/spot/${pair.replace('/', '')}">Bybit</a> | <a href="https://www.binance.com/en/trade/${pair.replace('/', '_')}">Binance</a>
+🔗 <a href="https://www.kraken.com/prices/${pair.split('/')[0]}?quote=${pair.split('/')[1]}">Kraken</a> | <a href="https://www.binance.com/en/trade/${pair.replace('/', '_')}">Binance</a>
 `.trim();
 };
 

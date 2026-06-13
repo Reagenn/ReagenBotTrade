@@ -447,7 +447,7 @@ app.get("/api/cex/live-prices", async (req, res) => {
     if (!positions?.length) return res.json([]);
 
     const symbols = [...new Set(positions.map(p => p.symbol))];
-    const exchange = createPublicExchange(process.env.CEX_EXCHANGE || "bybit");
+    const exchange = createPublicExchange(process.env.CEX_EXCHANGE || "kraken");
     const tickers = await withRetry(() => withTimeout(() => exchange.fetchTickers(symbols), 8000), "fetchTickers");
     
     const results = positions.map(pos => {

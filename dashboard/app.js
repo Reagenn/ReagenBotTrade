@@ -2262,7 +2262,7 @@ function renderCexPaperTrading(cex) {
   }
 
   if (el.cexExchangeBadge) {
-    el.cexExchangeBadge.textContent = String(cex.exchangeId || "bybit").toUpperCase();
+    el.cexExchangeBadge.textContent = String(cex.exchangeId || "kraken").toUpperCase();
   }
 
   const stats = cex.stats || {};

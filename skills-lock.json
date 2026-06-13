@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "gmgn-market": {
+      "source": "GMGNAI/gmgn-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gmgn-market/SKILL.md",
+      "computedHash": "9951a010f7c66895454f22e41a1cb8c8b4094c656f81f936b2a869203d380b6d"
+    },
+    "gmgn-portfolio": {
+      "source": "GMGNAI/gmgn-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gmgn-portfolio/SKILL.md",
+      "computedHash": "4e20afcbdc781917b537dfe4ccedf29dfcbd676a10d094d16c3bd60c9e8084b2"
+    },
+    "gmgn-token": {
+      "source": "GMGNAI/gmgn-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gmgn-token/SKILL.md",
+      "computedHash": "e5d1f15e8d83849dcf4a37e94e17b67c89bc72dbdad5d8b6a02b3e9421146323"
+    },
+    "gmgn-track": {
+      "source": "GMGNAI/gmgn-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gmgn-track/SKILL.md",
+      "computedHash": "0b90ee6ea282ea9a2e7548232c3d10b7210a9cb43e4882fddc4b422317e99cd5"
+    }
+  }
+}

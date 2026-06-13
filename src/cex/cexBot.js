@@ -13,7 +13,7 @@ const TelegramNotifier = require("../utils/telegram_notifier");
 
 const config = {
   enabled: process.env.CEX_BOT_ENABLED !== "false",
-  exchangeId: process.env.CEX_EXCHANGE || "bybit",
+  exchangeId: process.env.CEX_EXCHANGE || "kraken",
   scanIntervalMs: Number(process.env.CEX_SCAN_INTERVAL_MS || 60000),
   startingBalanceUsdt: Number(process.env.CEX_STARTING_BALANCE_USDT || 1000),
   positionSizeUsdt: Number(process.env.CEX_POSITION_SIZE_USDT || 100),

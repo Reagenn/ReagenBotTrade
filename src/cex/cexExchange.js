@@ -6,14 +6,15 @@ const SUPPORTED_EXCHANGES = {
   bybit: ccxt.bybit,
   bitget: ccxt.bitget,
   binance: ccxt.binance,
+  kraken: ccxt.kraken,
 };
 
 /**
  * Buat instance ccxt — hanya public market data (tanpa API key).
  * @param {string} [exchangeId]
  */
-function createPublicExchange(exchangeId = process.env.CEX_EXCHANGE || "bybit") {
-  const key = String(exchangeId || "bybit").toLowerCase();
+function createPublicExchange(exchangeId = process.env.CEX_EXCHANGE || "kraken") {
+  const key = String(exchangeId || "kraken").toLowerCase();
   const ExchangeClass = SUPPORTED_EXCHANGES[key];
 
   if (!ExchangeClass) {

@@ -10,7 +10,7 @@ class CexTracker {
    */
   constructor(simulator, options = {}) {
     this.simulator = simulator;
-    this.exchangeId = options.exchangeId || process.env.CEX_EXCHANGE || "bybit";
+    this.exchangeId = options.exchangeId || process.env.CEX_EXCHANGE || "kraken";
     this.pollIntervalMs = Number(options.pollIntervalMs ?? process.env.CEX_TRACKER_POLL_MS ?? 5000);
     this.exchange = createPublicExchange(this.exchangeId);
     this._timer = null;
