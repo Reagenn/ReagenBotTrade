@@ -23,6 +23,8 @@ const gmgnAdapter = require("../adapters/gmgnAdapter");
 const solanaTracker = require("../adapters/solanaTracker"); // Whale Detector
 const bitqueryAdapter = require("../advanced_trackers/bitqueryAdapter");
 const smartMoneyBuilder = require("../advanced_trackers/smartMoneyBuilder");
+const { cekSinyalSmartMoney } = require("../utils/smartMoneyLogic");
+const { cekSinyalVolumeBreakout } = require("../utils/volumeBreakout");
 
 const {
   ensureTokenWorthAnalyzing,
