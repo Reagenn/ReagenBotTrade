@@ -170,11 +170,19 @@ async function initDb() {
 
     // Tabel Paper Trading (CEX)
     await run(`CREATE TABLE IF NOT EXISTS cex_paper_positions (
-      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, current_price REAL, amount_usdt REAL, amount_token REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT
+      id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, current_price REAL, amount_usdt REAL, amount_token REAL, target_tp REAL, target_sl REAL, opened_at DATETIME, metadata TEXT, is_hold INTEGER DEFAULT 0
     )`);
     await run(`CREATE TABLE IF NOT EXISTS cex_paper_trades (
       id TEXT PRIMARY KEY, symbol TEXT, entry_price REAL, exit_price REAL, amount_usdt REAL, amount_token REAL, pnl_usd REAL, pnl_percent REAL, result TEXT, trigger_type TEXT, opened_at DATETIME, closed_at DATETIME, target_tp REAL, target_sl REAL
     )`);
+
+    // Migration for cex_paper_positions
+    try {
+      const cexPosCols = await query("PRAGMA table_info(cex_paper_positions)");
+      if (!cexPosCols.some(c => c.name === 'is_hold')) {
+        await run("ALTER TABLE cex_paper_positions ADD COLUMN is_hold INTEGER DEFAULT 0");
+      }
+    } catch (e) { console.error("[DB] CEX positions migration error:", e.message); }
 
     // Migration for cex_paper_trades
     try {
