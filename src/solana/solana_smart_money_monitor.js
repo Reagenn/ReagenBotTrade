@@ -432,6 +432,23 @@ async function runMonitorCycle() {
         // Audit Penalties
         if (audit.status === 'WARNING') score -= 15;
         
+        // --- NEW: Aggressive Signal Detection (Smart Money & Volume Breakout) ---
+        console.log(`[🚀 SCAN] Memeriksa sinyal agresif untuk ${candidate.token.symbol}...`);
+        const [isSmartMoneyBuying, breakout] = await Promise.all([
+          cekSinyalSmartMoney(mint).catch(() => false),
+          Promise.resolve(cekSinyalVolumeBreakout(bestPairRaw))
+        ]);
+
+        if (isSmartMoneyBuying) {
+          score += 40; // Bonus besar untuk akumulasi Smart Money
+          console.log(`[🎯 SIGNAL] ${candidate.token.symbol} mendapat bonus +40 dari deteksi Smart Money.`);
+        }
+
+        if (breakout.valid) {
+          score += 30; // Bonus untuk lonjakan volume breakout
+          console.log(`[🎯 SIGNAL] ${candidate.token.symbol} mendapat bonus +30 dari deteksi Volume Breakout.`);
+        }
+        
         candidate.score = score;
         candidate.labels = { tier: score >= config.strongBuyScore ? 'FIRE' : score >= config.buyScore ? 'ALPHA' : 'WATCH' };
         candidate.status = candidate.labels.tier === 'FIRE' ? 'STRONG_BUY' : candidate.labels.tier === 'ALPHA' ? 'BUY_ZONE' : 'WATCH';

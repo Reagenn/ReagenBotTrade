@@ -93,7 +93,7 @@ class CexMonitor {
     this.exchangeId = options.exchangeId || process.env.CEX_EXCHANGE || "kraken";
     this.timeframe = options.timeframe || process.env.CEX_TIMEFRAME || "15m";
     this.universeLimit = Number(options.universeLimit ?? process.env.CEX_UNIVERSE_LIMIT ?? 40);
-    this.minQuoteVolume24h = Number(options.minQuoteVolume24h ?? process.env.CEX_MIN_QUOTE_VOLUME_24H ?? 500000);
+    this.minQuoteVolume24h = Number(options.minQuoteVolume24h ?? process.env.CEX_MIN_QUOTE_VOLUME_24H ?? 100000);
     this.exchange = null;
     this.marketsLoaded = false;
     this.symbolUniverse = [];
@@ -131,7 +131,7 @@ class CexMonitor {
     const rows = [];
 
     for (const [symbol, ticker] of Object.entries(tickers)) {
-      if (!symbol.endsWith("/USDT")) continue;
+      if (!symbol.endsWith("/USDT") && !symbol.endsWith("/USD")) continue;
       if (ignoredCoins.includes(symbol)) continue;
 
       const market = this.exchange.markets[symbol];
@@ -339,7 +339,7 @@ class CexMonitor {
         errors.push({ symbol, error: error.message });
       }
 
-      await new Promise((resolve) => setTimeout(resolve, Number(process.env.CEX_SCAN_SYMBOL_DELAY_MS || 120)));
+      await new Promise((resolve) => setTimeout(resolve, Number(process.env.CEX_SCAN_SYMBOL_DELAY_MS || 500)));
     }
 
     if (rejected.length) {
