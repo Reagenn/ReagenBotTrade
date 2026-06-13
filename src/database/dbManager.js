@@ -465,10 +465,13 @@ const dbManager = {
     return run(`UPDATE cex_paper_positions SET current_price = ? WHERE id = ?`, [price, id]).catch(() => {});
   },
   updatePositionHold: async (id, isHold) => {
-    return run(`UPDATE solana_paper_positions SET is_hold = ? WHERE id = ?`, [isHold ? 1 : 0, id]);
+    const holdVal = isHold ? 1 : 0;
+    await run(`UPDATE solana_paper_positions SET is_hold = ? WHERE id = ?`, [holdVal, id]).catch(() => {});
+    return run(`UPDATE cex_paper_positions SET is_hold = ? WHERE id = ?`, [holdVal, id]).catch(() => {});
   },
   updatePositionTargets: async (id, tp, sl) => {
-    return run(`UPDATE solana_paper_positions SET target_tp = ?, target_sl = ? WHERE id = ?`, [tp, sl, id]);
+    await run(`UPDATE solana_paper_positions SET target_tp = ?, target_sl = ? WHERE id = ?`, [tp, sl, id]).catch(() => {});
+    return run(`UPDATE cex_paper_positions SET target_tp = ?, target_sl = ? WHERE id = ?`, [tp, sl, id]).catch(() => {});
   },
   updateTradeTrigger: async (id, trigger) => {
     await run(`UPDATE solana_paper_trades SET trigger_type = ? WHERE id = ?`, [trigger, id]).catch(() => {});

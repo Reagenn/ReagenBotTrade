@@ -2303,10 +2303,16 @@ function renderCexPaperTrading(cex) {
       el.cexOpenList.innerHTML = open
         .map((pos) => {
           const pnlTone = Number(pos.unrealizedPnlPct || 0) >= 0 ? "good" : "bad";
+          const holdClass = pos.isHold ? "is-holding" : "";
+          const holdLabel = pos.isHold ? "Release Hold" : "Hold Position";
+
           return `
-            <article class="paper-position-card">
+            <article class="paper-position-card ${holdClass}">
               <div class="paper-position-head">
-                <strong>${pos.symbol || "-"}</strong>
+                <div style="display: flex; align-items: center; gap: 0.5rem">
+                  <strong>${pos.symbol || "-"}</strong>
+                  ${pos.isHold ? '<span class="hold-badge">HOLD</span>' : ""}
+                </div>
                 <span id="pnl-cex-${pos.id}" class="paper-position-pnl ${pnlTone}">${formatNumber(pos.unrealizedPnlPct || pos.pnlPct || 0, 2)}%</span>
               </div>
               <div class="paper-position-meta">
@@ -2317,16 +2323,36 @@ function renderCexPaperTrading(cex) {
               <div class="paper-position-meta">
                 <span>TP ${formatMoney(pos.targetTP)}${pos.tpSlMode === "atr" ? " (ATR)" : ""}</span>
                 <span>SL ${formatMoney(pos.targetSL)}</span>
-                <span>Fee ${formatMoney(pos.fee || 0)}</span>
                 <span>${formatAge(pos.openedAt)}</span>
               </div>
-              <button
-                type="button"
-                class="paper-close-btn paper-close-btn-cex"
-                data-close-cex-paper
-                data-trade-id="${pos.id || ""}"
-                data-symbol="${pos.symbol || ""}"
-              >Tutup posisi</button>
+              
+              <div class="paper-card-actions">
+                <button
+                  type="button"
+                  class="paper-action-btn btn-hold"
+                  data-hold-cex-paper
+                  data-position-id="${pos.id || ""}"
+                  data-is-hold="${pos.isHold ? "true" : "false"}"
+                >${holdLabel}</button>
+
+                <button
+                  type="button"
+                  class="paper-action-btn btn-target"
+                  data-target-cex-paper
+                  data-position-id="${pos.id || ""}"
+                  data-symbol="${pos.symbol || ""}"
+                  data-tp="${pos.targetTP}"
+                  data-sl="${pos.targetSL}"
+                >Set TP/SL</button>
+
+                <button
+                  type="button"
+                  class="paper-close-btn paper-close-btn-cex"
+                  data-close-cex-paper
+                  data-trade-id="${pos.id || ""}"
+                  data-symbol="${pos.symbol || ""}"
+                >Tutup posisi</button>
+              </div>
             </article>
           `;
         })
@@ -2862,6 +2888,54 @@ async function blacklistToken(button) {
   };
 }
 
+async function toggleCexPaperHold(button) {
+  if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa mengubah status", "error");
+  
+  const id = button.getAttribute("data-position-id");
+  const currentHold = button.getAttribute("data-is-hold") === "true";
+  const newHold = !currentHold;
+
+  button.disabled = true;
+  button.textContent = "...";
+
+  try {
+    const res = await fetchWithAuth("/api/cex-paper/toggle-hold", {
+      method: "POST",
+      body: JSON.stringify({ id, isHold: newHold }),
+    });
+
+    if (res.ok) {
+      ui.toast(newHold ? "Posisi CEX di-HOLD (Bot tidak akan auto-sell)" : "HOLD dilepas untuk posisi CEX", "success");
+      await loadDashboard();
+    } else {
+      throw new Error("Gagal mengubah status hold");
+    }
+  } catch (err) {
+    ui.toast(err.message, "error");
+    button.disabled = false;
+    button.textContent = currentHold ? "Release Hold" : "Hold Position";
+  }
+}
+
+async function openCexUpdateTargetsDialog(button) {
+  if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa mengubah target", "error");
+
+  const id = button.getAttribute("data-position-id");
+  const symbol = button.getAttribute("data-symbol");
+  const tp = button.getAttribute("data-tp");
+  const sl = button.getAttribute("data-sl");
+
+  document.getElementById("targetPositionId").value = id;
+  document.getElementById("targetSymbolDisplay").textContent = symbol;
+  document.getElementById("targetTPInput").value = tp;
+  document.getElementById("targetSLInput").value = sl;
+
+  // Re-use the same dialog but update the submission logic if needed or just handle it in the event listener
+  const dialog = document.getElementById("updatePaperTargetsDialog");
+  dialog.dataset.mode = "cex";
+  dialog.showModal();
+}
+
 async function closeCexPaperPosition(button) {
   if (currentUser.role === 'GUEST') return ui.toast("GUEST tidak bisa trading", "error");
 
@@ -3016,7 +3090,10 @@ if (updatePaperTargetsForm) {
     btn.textContent = "Menyimpan...";
 
     try {
-      const response = await fetchWithAuth("/api/solana-paper/update-targets", {
+      const mode = document.getElementById("updatePaperTargetsDialog").dataset.mode || "solana";
+      const endpoint = mode === "cex" ? "/api/cex-paper/update-targets" : "/api/solana-paper/update-targets";
+      
+      const response = await fetchWithAuth(endpoint, {
         method: "POST",
         body: JSON.stringify({ id, tp, sl }),
       });
@@ -3067,7 +3144,20 @@ document.addEventListener("click", (event) => {
 
   const solanaTargetBtn = event.target.closest("[data-target-solana-paper]");
   if (solanaTargetBtn) {
+    document.getElementById("updatePaperTargetsDialog").dataset.mode = "solana";
     openUpdateTargetsDialog(solanaTargetBtn);
+    return;
+  }
+
+  const cexHoldBtn = event.target.closest("[data-hold-cex-paper]");
+  if (cexHoldBtn) {
+    toggleCexPaperHold(cexHoldBtn);
+    return;
+  }
+
+  const cexTargetBtn = event.target.closest("[data-target-cex-paper]");
+  if (cexTargetBtn) {
+    openCexUpdateTargetsDialog(cexTargetBtn);
     return;
   }
 

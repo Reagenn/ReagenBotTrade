@@ -325,6 +325,7 @@ async function buildDashboardPayload() {
     cexPaper.activeTrades = dbCexPositions.map(p => ({
       id: p.id, symbol: p.symbol, entryPrice: p.entry_price, currentPrice: p.current_price || p.entry_price,
       amountUsdt: p.amount_usdt, targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
+      isHold: !!p.is_hold,
       pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
     }));
 
@@ -376,6 +377,7 @@ app.get("/api/cex-paper", async (req, res) => {
     cexPaper.activeTrades = dbCexPositions.map(p => ({
       id: p.id, symbol: p.symbol, entryPrice: p.entry_price, currentPrice: p.current_price || p.entry_price,
       amountUsdt: p.amount_usdt, targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
+      isHold: !!p.is_hold,
       pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
     }));
 
@@ -500,6 +502,24 @@ app.post("/api/solana-paper/toggle-hold", verifyToken, requireApproved, requireR
 });
 
 app.post("/api/solana-paper/update-targets", verifyToken, requireApproved, requireRole(['USER', 'ADMIN']), async (req, res) => {
+  try {
+    const { id, tp, sl } = req.body;
+    if (!id) return res.status(400).json({ error: "ID required" });
+    await dbManager.updatePositionTargets(id, Number(tp), Number(sl));
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/cex-paper/toggle-hold", verifyToken, requireApproved, requireRole(['USER', 'ADMIN']), async (req, res) => {
+  try {
+    const { id, isHold } = req.body;
+    if (!id) return res.status(400).json({ error: "ID required" });
+    await dbManager.updatePositionHold(id, isHold);
+    res.json({ success: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post("/api/cex-paper/update-targets", verifyToken, requireApproved, requireRole(['USER', 'ADMIN']), async (req, res) => {
   try {
     const { id, tp, sl } = req.body;
     if (!id) return res.status(400).json({ error: "ID required" });

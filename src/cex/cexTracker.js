@@ -47,6 +47,9 @@ class CexTracker {
 
         const trades = activeTrades.filter((trade) => trade.symbol === symbol);
         for (const trade of [...trades]) {
+          // SKIP TP/SL check if position is on HOLD
+          if (trade.isHold) continue;
+
           if (price >= trade.targetTP) {
             const result = await this.simulator.closeTrade(trade.id, price, "TP");
             if (result) closed.push(result);

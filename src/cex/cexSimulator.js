@@ -245,6 +245,7 @@ class CexSimulator {
         targetTP: row.target_tp,
         targetSL: row.target_sl,
         openedAt: row.opened_at,
+        isHold: !!row.is_hold,
         metadata: row.metadata ? JSON.parse(row.metadata) : null
       }));
     } catch (err) {
