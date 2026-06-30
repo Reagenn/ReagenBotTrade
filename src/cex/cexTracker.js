@@ -18,29 +18,32 @@ class CexTracker {
   }
 
   async fetchLastPrice(symbol) {
-    const ticker = await withRetry(
-      () => withTimeout(() => this.exchange.fetchTicker(symbol), undefined, `ticker ${symbol}`),
-      `ticker ${symbol}`,
-    );
+    const ticker = await withRetry(() => withTimeout(() => this.exchange.fetchTicker(symbol), undefined, `ticker ${symbol}`), `ticker ${symbol}`);
     return Number(ticker.last || ticker.close || 0);
   }
 
   /**
-   * Satu tick: update mark price & cek TP/SL.
+   * Satu tick: update mark price & cek TP/SL dengan Tarikan Massal (Bulk Fetch)
    */
   async asyncTick() {
     const activeTrades = await this.simulator.getActiveTrades();
     const openSymbols = [...new Set(activeTrades.map((trade) => trade.symbol))];
-    
+
     if (!openSymbols.length) {
       return { closed: [], checked: 0 };
     }
 
     const closed = [];
 
-    for (const symbol of openSymbols) {
-      try {
-        const price = await this.fetchLastPrice(symbol);
+    try {
+      // 🕸️ MODE JARING: Tarik semua harga koin yang terbuka HANYA dengan 1 kali tembakan API!
+      const tickers = await withRetry(() => withTimeout(() => this.exchange.fetchTickers(openSymbols), undefined, "fetchTickers bulk"), "fetchTickers bulk");
+
+      for (const symbol of openSymbols) {
+        const ticker = tickers[symbol];
+        if (!ticker) continue; // Lewati jika koin tidak ditemukan di hasil tarikan
+
+        const price = Number(ticker.last || ticker.close || 0);
         if (!Number.isFinite(price) || price <= 0) continue;
 
         await this.simulator.updateMarkPrice(symbol, price);
@@ -58,16 +61,14 @@ class CexTracker {
             if (result) closed.push(result);
           }
         }
-      } catch (error) {
-        console.warn(`[cexTracker] Gagal pantau ${symbol}: ${error.message}`);
       }
+    } catch (error) {
+      console.warn(`[cexTracker] Gagal melakukan bulk fetch: ${error.message}`);
     }
 
     const stats = await this.simulator.getStats();
     if (closed.length || (stats && stats.totalTrades > 0)) {
-      console.log(
-        `[cexTracker] WR ${stats.winRate}% · ${stats.profitTrades}W/${stats.lossTrades}L · net ${stats.netPnlUsdt >= 0 ? "+" : ""}${stats.netPnlUsdt} USDT · open ${stats.openPositions}`,
-      );
+      console.log(`[cexTracker] WR ${stats.winRate}% · ${stats.profitTrades}W/${stats.lossTrades}L · net ${stats.netPnlUsdt >= 0 ? "+" : ""}${stats.netPnlUsdt} USDT · open ${stats.openPositions}`);
     }
 
     return { closed, checked: openSymbols.length, stats };

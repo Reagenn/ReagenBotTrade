@@ -1,6 +1,7 @@
 const dbManager = require("../database/dbManager");
 const logger = require("../utils/logger");
 const { formatPct, formatPrice, formatQty } = require("../utils/log_helpers");
+const { calculatePnlPctFromPrices, calculatePnlPctFromAmount } = require("../utils/math_utils");
 
 class PaperAccount {
   constructor(config) {
@@ -335,7 +336,7 @@ class PaperAccount {
       exitPrice,
       grossPnl,
       netPnl,
-      pnlPct: ((exitPrice - position.entryPrice) / position.entryPrice) * 100,
+      pnlPct: calculatePnlPctFromPrices(position.entryPrice, exitPrice),
       fee: exitFee,
       timestamp: new Date().toISOString(),
       reason,
@@ -417,7 +418,7 @@ class PaperAccount {
       state.performance.losses += 1;
     }
 
-    const pnlPct = position.marginLocked > 0 ? (netPnl / position.marginLocked) * 100 : 0;
+    const pnlPct = calculatePnlPctFromAmount(netPnl, position.marginLocked);
     const tradeRecord = {
       type: "EXIT",
       mode: "futures",

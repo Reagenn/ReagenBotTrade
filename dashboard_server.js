@@ -5,6 +5,7 @@ const path = require("path");
 const fs = require("fs");
 const PaperAccount = require("./src/core/paper_account");
 const { formatPct, formatPrice, formatQty } = require("./src/utils/log_helpers");
+const { calculatePnlPctFromPrices } = require("./src/utils/math_utils");
 const { closeSolanaPaperPosition } = require("./src/solana/solanaPaperTrading");
 const { closeCexTradeManually } = require("./src/cex/cexBot");
 const { createPublicExchange, withTimeout, withRetry } = require("./src/cex/cexExchange");
@@ -296,7 +297,7 @@ async function buildDashboardPayload() {
       entryPrice: p.entry_price, currentPrice: p.current_price, amountSol: p.amount_sol,
       targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
       isHold: !!p.is_hold,
-      unrealizedPnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
+      unrealizedPnlPct: calculatePnlPctFromPrices(p.entry_price, p.current_price || p.entry_price)
     }));
 
     solanaPaper.tradeHistory = dbSolanaTrades.map(t => ({
@@ -326,7 +327,7 @@ async function buildDashboardPayload() {
       id: p.id, symbol: p.symbol, entryPrice: p.entry_price, currentPrice: p.current_price || p.entry_price,
       amountUsdt: p.amount_usdt, targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
       isHold: !!p.is_hold,
-      pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
+      pnlPct: calculatePnlPctFromPrices(p.entry_price, p.current_price || p.entry_price)
     }));
 
     cexPaper.tradeHistory = dbCexTrades.map(t => ({
@@ -378,7 +379,7 @@ app.get("/api/cex-paper", async (req, res) => {
       id: p.id, symbol: p.symbol, entryPrice: p.entry_price, currentPrice: p.current_price || p.entry_price,
       amountUsdt: p.amount_usdt, targetTP: p.target_tp, targetSL: p.target_sl, openedAt: p.opened_at,
       isHold: !!p.is_hold,
-      pnlPct: p.entry_price > 0 ? (((p.current_price || p.entry_price) - p.entry_price) / p.entry_price) * 100 : 0
+      pnlPct: calculatePnlPctFromPrices(p.entry_price, p.current_price || p.entry_price)
     }));
 
     cexPaper.tradeHistory = dbCexTrades.map(t => ({
@@ -425,7 +426,7 @@ app.get("/api/dashboard/live-prices", async (req, res) => {
       return { 
         id: pos.id, 
         currentPrice, 
-        pnlPct: entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0 
+        pnlPct: calculatePnlPctFromPrices(entryPrice, currentPrice)
       };
     });
 
@@ -457,7 +458,8 @@ app.get("/api/cex/live-prices", async (req, res) => {
       if (!ticker) return null;
       const currentPrice = Number(ticker.last || ticker.close || 0);
       const entryPrice = Number(pos.entry_price);
-      return { id: pos.id, symbol: pos.symbol, currentPrice, pnlPercentage: ((currentPrice - entryPrice) / entryPrice) * 100 };
+       return { id: pos.id, symbol: pos.symbol, currentPrice, pnlPercentage: calculatePnlPctFromPrices(entryPrice, currentPrice) };
+
     }).filter(Boolean);
 
     res.json(results);

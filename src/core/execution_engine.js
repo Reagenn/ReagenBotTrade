@@ -1,5 +1,6 @@
 const logger = require("../utils/logger");
 const { formatPct, formatPrice, formatQty } = require("../utils/log_helpers");
+const { calculatePnlPctFromPrices } = require("../utils/math_utils");
 
 class ExecutionEngine {
   constructor({ dataFetcher, riskManager, config, paperAccount = null }) {
@@ -306,11 +307,8 @@ class ExecutionEngine {
   }
 
   calculatePnlPct(side, entryPrice, exitPrice) {
-    if (side === "sell") {
-      return ((entryPrice - exitPrice) / entryPrice) * 100;
-    }
-
-    return ((exitPrice - entryPrice) / entryPrice) * 100;
+    const pct = calculatePnlPctFromPrices(entryPrice, exitPrice);
+    return side === "sell" ? -pct : pct;
   }
 }
 

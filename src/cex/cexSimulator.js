@@ -4,6 +4,7 @@
 
 const TAKER_FEE_RATE = 0.001; // 0.1% transaction fee
 const dbManager = require("../database/dbManager");
+const { calculatePnlPctFromAmount } = require("../utils/math_utils");
 
 function round(value, decimals = 8) {
   if (!Number.isFinite(value)) return 0;
@@ -160,7 +161,7 @@ class CexSimulator {
       const exitFeeUsdt = grossRevenueUsdt * TAKER_FEE_RATE;
       const proceedsUsdt = round(grossRevenueUsdt - exitFeeUsdt, 2);
       const pnlUsdt = round(proceedsUsdt - trade.amountUsdt, 2);
-      const pnlPct = trade.amountUsdt > 0 ? round((pnlUsdt / trade.amountUsdt) * 100, 2) : 0;
+      const pnlPct = round(calculatePnlPctFromAmount(pnlUsdt, trade.amountUsdt), 2);
 
       // Use dbManager to handle closing logic (delete, insert, balance)
       const result = await dbManager.closePosition('cex', trade.id, price, pnlPct, trigger);
